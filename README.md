@@ -23,14 +23,6 @@
 WineWarden is a calm, always-on protection layer for Wine, Proton, Lutris, and Steam. It is not an antivirus. It does not moralize. It exists so you can play without anxiety.
 
 ```
-     __      ___           _       __        __         __
-    / /___ _/ (_)___  ____(_)___  / /____ _ / /_____ _ / /_
-   / / __ `/ / / __ \/ __/ / __ \/ __/ _ `/ / __/ __ `/ __/
-  / / /_/ / / / /_/ / /_/ / / / / /_/ (_/ / /_/ /_/ / /_
- /_/\__,_/_/_/\____/\__/_/_/ /_/\__/\__,_/\__/\__,_/\__/
-
-            W I N E W A R D E N  ·  calm by design
-```
 
 ## What It Is
 
