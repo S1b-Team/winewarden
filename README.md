@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&size=18&pause=1000&color=7CFC00&center=true&vCenter=true&width=820&lines=Play+Windows+games+on+Linux+without+trusting+random+executables+with+your+system." alt="WineWarden tagline" />
+  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&size=18&pause=1000&color=7CFC00&center=true&vCenter=true&width=900&lines=Play+Windows+games+on+Linux;without+trusting+random+executables+with+your+system." alt="WineWarden tagline" />
 </p>
 
 <p align="center">
