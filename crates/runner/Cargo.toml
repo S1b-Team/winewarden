@@ -1,0 +1,11 @@
+[package]
+name = "runner"
+edition.workspace = true
+version.workspace = true
+authors.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+winewarden-core = { path = "../winewarden-core" }

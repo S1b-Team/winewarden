@@ -1,0 +1,50 @@
+[winewarden]
+enabled = true
+no_prompts_during_gameplay = true
+emergency_only = true
+systemic_risk_only = true
+
+[trust]
+default_tier = "yellow"
+pirate_safe = false
+auto_promote = true
+promotion_after_runs = 3
+
+[[sacred_zones]]
+label = "Home outside prefix"
+path = "${HOME}"
+action = "redirect"
+redirect_to = "${DATA_DIR}/virtual/home"
+
+[[sacred_zones]]
+label = "SSH keys"
+path = "${HOME}/.ssh"
+action = "deny"
+
+[[sacred_zones]]
+label = "GPG keys"
+path = "${HOME}/.gnupg"
+action = "deny"
+
+[[sacred_zones]]
+label = "User config"
+path = "${HOME}/.config"
+action = "redirect"
+redirect_to = "${DATA_DIR}/virtual/config"
+
+[network]
+mode = "observe"
+dns_awareness = true
+destination_monitoring = true
+block_on_malicious = true
+
+[prefix]
+separate_by_trust = true
+snapshot_before_first_run = true
+hygiene_scan_on_run = true
+disposable_prefix_for_untrusted = true
+
+[reporting]
+store_reports = true
+human_summary = true
+structured_json = true

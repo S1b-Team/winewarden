@@ -1,0 +1,8 @@
+[Unit]
+Description=WineWarden Socket
+
+[Socket]
+ListenStream=%t/winewarden/winewarden.sock
+
+[Install]
+WantedBy=sockets.target

@@ -1,0 +1,6 @@
+[trust]
+default_tier = "yellow"
+
+[prefix]
+separate_by_trust = true
+snapshot_before_first_run = true

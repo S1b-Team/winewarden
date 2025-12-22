@@ -1,0 +1,2 @@
+runner: wine
+command: winewarden run -- /path/to/game.exe

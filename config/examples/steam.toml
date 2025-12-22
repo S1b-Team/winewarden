@@ -1,0 +1,8 @@
+[trust]
+default_tier = "yellow"
+
+[prefix]
+separate_by_trust = true
+
+[network]
+mode = "observe"

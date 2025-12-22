@@ -1,0 +1,13 @@
+[package]
+name = "reporting"
+edition.workspace = true
+version.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+time.workspace = true
+uuid.workspace = true
+winewarden-core = { path = "../winewarden-core" }
+policy-engine = { path = "../policy-engine" }

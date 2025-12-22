@@ -1,0 +1,28 @@
+[winewarden]
+enabled = true
+no_prompts_during_gameplay = true
+emergency_only = true
+systemic_risk_only = true
+
+[trust]
+default_tier = "green"
+pirate_safe = false
+auto_promote = true
+promotion_after_runs = 1
+
+[network]
+mode = "permissive"
+dns_awareness = true
+destination_monitoring = true
+block_on_malicious = false
+
+[prefix]
+separate_by_trust = false
+snapshot_before_first_run = false
+hygiene_scan_on_run = false
+disposable_prefix_for_untrusted = false
+
+[reporting]
+store_reports = true
+human_summary = true
+structured_json = true

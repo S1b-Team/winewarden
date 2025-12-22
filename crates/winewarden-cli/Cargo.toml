@@ -1,0 +1,23 @@
+[package]
+name = "winewarden-cli"
+edition.workspace = true
+version.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "winewarden"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+time.workspace = true
+libc = "0.2"
+winewarden-core = { path = "../winewarden-core" }
+policy-engine = { path = "../policy-engine" }
+monitor = { path = "../monitor" }
+prefix-manager = { path = "../prefix-manager" }
+reporting = { path = "../reporting" }
+runner = { path = "../runner" }

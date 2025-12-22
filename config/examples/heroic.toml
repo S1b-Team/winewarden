@@ -1,0 +1,6 @@
+[trust]
+default_tier = "yellow"
+
+[network]
+mode = "observe"
+destination_monitoring = true
