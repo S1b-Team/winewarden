@@ -322,18 +322,18 @@ Examples of the tone you should expect:
 
 ## Documentation
 
-- `docs/vision.md`
-- `docs/threat-model.md`
-- `docs/winewarden-mode.md`
-- `docs/trust-tiers.md`
-- `docs/sacred-zones.md`
-- `docs/prefix-hygiene.md`
-- `docs/networking.md`
-- `docs/pirate-safe-mode.md`
-- `docs/reports.md`
-- `docs/configuration.md`
-- `docs/architecture.md`
-- `docs/glossary.md`
+- [docs/vision.md](docs/vision.md)
+- [docs/threat-model.md](docs/threat-model.md)
+- [docs/winewarden-mode.md](docs/winewarden-mode.md)
+- [docs/trust-tiers.md](docs/trust-tiers.md)
+- [docs/sacred-zones.md](docs/sacred-zones.md)
+- [docs/prefix-hygiene.md](docs/prefix-hygiene.md)
+- [docs/networking.md](docs/networking.md)
+- [docs/pirate-safe-mode.md](docs/pirate-safe-mode.md)
+- [docs/reports.md](docs/reports.md)
+- [docs/configuration.md](docs/configuration.md)
+- [docs/architecture.md](docs/architecture.md)
+- [docs/glossary.md](docs/glossary.md)
 
 ## Status
 
