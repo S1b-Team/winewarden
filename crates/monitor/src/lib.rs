@@ -1,15 +1,20 @@
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{self, BufRead, BufReader};
 use std::collections::HashSet;
+use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::thread::sleep;
 use std::time::Duration;
+use std::os::fd::{AsRawFd, AsFd, OwnedFd, BorrowedFd};
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
+use nix::sys::socket::{socketpair, AddressFamily, SockType, SockFlag};
+use nix::unistd::close;
+use nix::poll::{poll, PollFd, PollFlags, PollTimeout};
 
 use winewarden_core::trust::TrustTier;
 use winewarden_core::types::{AccessAttempt, LiveMonitorConfig, RunMetadata};
@@ -19,7 +24,11 @@ use reporting::{ReportEvent, SessionReport, trust_signal_for_tier};
 pub mod fs_watch;
 pub mod net_watch;
 pub mod proc_watch;
+pub mod sandbox;
 pub mod signals;
+pub mod syscalls;
+pub mod memory;
+pub mod seccomp_handler;
 
 pub trait EventSource {
     fn next_event(&mut self) -> Result<Option<AccessAttempt>>;
@@ -91,9 +100,27 @@ impl Monitor {
             trust_tier: request.trust_tier,
         };
 
-        let mut child = None;
+        let mut child_process = None;
+        let mut seccomp_fd: Option<OwnedFd> = None;
+
         if !request.no_run {
-            child = Some(self.spawn_process(&request.executable, &request.args)?);
+            let (child, rx_fd) = self.spawn_process(&request.executable, &request.args, &request.prefix_root, request.trust_tier)?;
+            child_process = Some(child);
+            
+            if let Some(rx) = rx_fd {
+                // Try to receive the seccomp notify FD from the child
+                // We use the raw fd of rx to receive
+                match syscalls::recv_fd(rx.as_raw_fd()) {
+                    Ok(fd) => {
+                        // println!("Seccomp active. Notification FD: {}", fd.as_raw_fd());
+                        seccomp_fd = Some(fd);
+                    }
+                    Err(e) => {
+                         eprintln!("Warning: Failed to receive Seccomp FD: {}", e);
+                    }
+                }
+                // rx is OwnedFd, drops here and closes socket
+            }
         }
 
         let policy_context = PolicyContext {
@@ -102,7 +129,7 @@ impl Monitor {
         };
 
         let mut evaluated = Vec::new();
-        if let Some(mut child) = child {
+        if let Some(mut child) = child_process {
             let live_config = request.live_monitor.clone().unwrap_or_default();
             let mut fs_watcher = if live_config.fs {
                 Some(fs_watch::FsWatcher::new(&request.prefix_root)?)
@@ -114,10 +141,54 @@ impl Monitor {
             seen_pids.insert(child.id());
 
             while child.try_wait()?.is_none() {
-                if let Some(watcher) = fs_watcher.as_mut() {
-                    for event in watcher.drain() {
-                        let decision = self.policy.evaluate(&event, &policy_context);
-                        evaluated.push(ReportEvent { attempt: event, decision });
+                // Handle Seccomp Notifications
+                if let Some(fd) = &seccomp_fd {
+                    let mut poll_fds = [PollFd::new(fd.as_fd(), PollFlags::POLLIN)];
+                    
+                    let timeout_ms = if live_config.enabled() {
+                         live_config.poll_interval_ms as i32
+                    } else {
+                         100
+                    };
+                    
+                    // PollTimeout::try_from is available for i32
+                    let timeout = PollTimeout::try_from(timeout_ms).unwrap_or(PollTimeout::NONE);
+
+                    match poll(&mut poll_fds, timeout) {
+                        Ok(_) => {
+                            if poll_fds[0].revents().unwrap_or(PollFlags::empty()).contains(PollFlags::POLLIN) {
+                                match seccomp_handler::handle_notification(fd.as_raw_fd(), &self.policy, &policy_context) {
+                                    Ok(Some((attempt, decision))) => {
+                                        evaluated.push(ReportEvent { attempt, decision });
+                                    }
+                                    Ok(None) => {}, // Notification handled (e.g. unknown syscall or ignored)
+                                    Err(e) => eprintln!("Seccomp handler error: {}", e),
+                                }
+                            }
+                        }
+                        Err(e) => {
+                             if e != nix::errno::Errno::EINTR {
+                                 eprintln!("Poll error: {}", e);
+                             }
+                        }
+                    }
+                } else {
+                    // Fallback to sleep if no seccomp
+                     if live_config.enabled() {
+                        sleep(Duration::from_millis(live_config.poll_interval_ms));
+                    } else {
+                        // Wait for child if no monitoring and no seccomp?
+                        // Just wait briefly to avoid busy loop
+                        sleep(Duration::from_millis(100));
+                    }
+                }
+
+                if live_config.fs {
+                    if let Some(watcher) = fs_watcher.as_mut() {
+                        for event in watcher.drain() {
+                            let decision = self.policy.evaluate(&event, &policy_context);
+                            evaluated.push(ReportEvent { attempt: event, decision });
+                        }
                     }
                 }
                 if live_config.proc {
@@ -132,13 +203,9 @@ impl Monitor {
                         evaluated.push(ReportEvent { attempt: event, decision });
                     }
                 }
-                if live_config.enabled() {
-                    sleep(Duration::from_millis(live_config.poll_interval_ms));
-                } else {
-                    child.wait()?;
-                    break;
-                }
             }
+            
+            // seccomp_fd drops here
         }
 
         let mut source: Box<dyn EventSource> = match &request.event_log {
@@ -156,12 +223,65 @@ impl Monitor {
         Ok(SessionReport::new(metadata, trust_signal, evaluated))
     }
 
-    fn spawn_process(&self, executable: &Path, args: &[String]) -> Result<std::process::Child> {
-        let child = Command::new(executable)
-            .args(args)
+    fn spawn_process(&self, executable: &Path, args: &[String], prefix: &Path, tier: TrustTier) -> Result<(std::process::Child, Option<OwnedFd>)> {
+        let mut cmd = Command::new(executable);
+        cmd.args(args);
+
+        // Create socket pair for Seccomp FD passing
+        let (rx, tx) = socketpair(
+            AddressFamily::Unix,
+            SockType::Datagram,
+            None,
+            SockFlag::empty()
+        ).context("socketpair failed")?;
+
+        // Apply Landlock sandbox
+        // We clone the path/tier because the closure needs to own them or move them
+        let prefix = prefix.to_path_buf();
+        unsafe {
+            cmd.pre_exec(move || {
+                // 1. Landlock
+                sandbox::apply_sandbox(&prefix, tier).map_err(|e| {
+                    io::Error::new(io::ErrorKind::Other, e.to_string())
+                })?;
+
+                // 2. Seccomp (Install filter and send FD)
+                let notify_fd = syscalls::install_seccomp_filter().map_err(|e| {
+                     io::Error::new(io::ErrorKind::Other, e.to_string())
+                })?;
+                
+                syscalls::send_fd(tx.as_raw_fd(), notify_fd).map_err(|e| {
+                    io::Error::new(io::ErrorKind::Other, e.to_string())
+                })?;
+                
+                // Close the notify FD in the child (parent has it now via socket, or will have it)
+                let _ = close(notify_fd);
+                // tx drops and closes here
+
+                Ok(())
+            });
+        }
+
+        let child = cmd
             .spawn()
             .with_context(|| format!("launch {}", executable.display()))?;
 
-        Ok(child)
+        // tx drops and closes in parent (Wait, tx was moved to closure? No, only in closure scope)
+        // Actually, if we use `move ||`, `tx` is moved into closure. It is NOT available in parent anymore?
+        // Ah, `socketpair` returns objects. If I move `tx` into closure, parent doesn't have it.
+        // BUT, `pre_exec` runs in child.
+        // Wait, `Command::pre_exec` closure is run in the child process.
+        // But the closure definition happens in the parent.
+        // So `tx` is moved into the closure structure.
+        // Does the parent still own `tx`? No.
+        // So `tx` is dropped in the parent when the closure is dropped?
+        // `cmd` owns the closure. `cmd` is dropped after `spawn`? No, `spawn` consumes `&mut cmd`? No.
+        // `spawn` creates the child.
+        // IMPORTANT: We need to ensure `tx` is closed in the PARENT so the child sees EOF/closure if needed?
+        // Actually, `socketpair` creates FDs. If we move `tx` into closure, it's owned by the closure.
+        // When `cmd` is dropped (at end of `spawn_process`), the closure is dropped, and `tx` is closed in the parent process.
+        // This is correct. We don't need to manually close `tx` in parent.
+
+        Ok((child, Some(rx)))
     }
 }
