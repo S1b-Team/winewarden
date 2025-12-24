@@ -12,7 +12,7 @@ use crate::memory;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Default)]
-struct SeccompData {
+pub struct SeccompData {
     nr: i32,
     arch: u32,
     instruction_pointer: u64,

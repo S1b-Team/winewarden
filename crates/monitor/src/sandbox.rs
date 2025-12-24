@@ -121,7 +121,7 @@ fn add_rule(ruleset: &mut RulesetCreated, path: &Path, access: BitFlags<AccessFs
 
         Ok(_) => Ok(()),
 
-        Err(RulesetError::AddRules(e)) => {
+        Err(RulesetError::AddRules(_e)) => {
 
             // Log warning?
 

@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::thread::sleep;
 use std::time::Duration;
-use std::os::fd::{AsRawFd, AsFd, OwnedFd, BorrowedFd};
+use std::os::fd::{AsRawFd, AsFd, OwnedFd};
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
