@@ -59,27 +59,78 @@ document.addEventListener('DOMContentLoaded', function() {
     const prevBtn = document.querySelector('.carousel-btn.prev');
     const nextBtn = document.querySelector('.carousel-btn.next');
     const cards = document.querySelectorAll('.carousel-card');
+    const carouselContainer = document.querySelector('.carousel-container');
 
     if (carouselTrack && cards.length > 0) {
         let currentIndex = 0;
         const cardWidth = 350 + 32; // card width + gap
         const maxIndex = Math.max(0, cards.length - Math.floor(window.innerWidth / cardWidth));
+        let autoplayInterval;
+        let isPaused = false;
 
         function updateCarousel() {
             carouselTrack.style.transform = `translateX(-${currentIndex * cardWidth}px)`;
         }
 
+        function nextSlide() {
+            if (currentIndex < maxIndex) {
+                currentIndex++;
+            } else {
+                currentIndex = 0; // Loop back to start
+            }
+            updateCarousel();
+        }
+
+        function prevSlide() {
+            if (currentIndex > 0) {
+                currentIndex--;
+            } else {
+                currentIndex = maxIndex; // Loop to end
+            }
+            updateCarousel();
+        }
+
+        // Autoplay functionality
+        function startAutoplay() {
+            autoplayInterval = setInterval(() => {
+                if (!isPaused) {
+                    nextSlide();
+                }
+            }, 3000); // Change slide every 3 seconds
+        }
+
+        function stopAutoplay() {
+            clearInterval(autoplayInterval);
+        }
+
+        // Start autoplay
+        startAutoplay();
+
+        // Pause on hover
+        if (carouselContainer) {
+            carouselContainer.addEventListener('mouseenter', () => {
+                isPaused = true;
+            });
+
+            carouselContainer.addEventListener('mouseleave', () => {
+                isPaused = false;
+            });
+        }
+
+        // Button controls
         if (prevBtn) {
             prevBtn.addEventListener('click', () => {
-                currentIndex = Math.max(0, currentIndex - 1);
-                updateCarousel();
+                prevSlide();
+                stopAutoplay();
+                startAutoplay(); // Reset timer
             });
         }
 
         if (nextBtn) {
             nextBtn.addEventListener('click', () => {
-                currentIndex = Math.min(maxIndex, currentIndex + 1);
-                updateCarousel();
+                nextSlide();
+                stopAutoplay();
+                startAutoplay(); // Reset timer
             });
         }
 
@@ -90,6 +141,7 @@ document.addEventListener('DOMContentLoaded', function() {
         carouselTrack.addEventListener('touchstart', (e) => {
             startX = e.touches[0].clientX;
             isDragging = true;
+            isPaused = true; // Pause while touching
         });
 
         carouselTrack.addEventListener('touchmove', (e) => {
@@ -99,6 +151,7 @@ document.addEventListener('DOMContentLoaded', function() {
         carouselTrack.addEventListener('touchend', (e) => {
             if (!isDragging) return;
             isDragging = false;
+            isPaused = false; // Resume after touch
 
             const endX = e.changedTouches[0].clientX;
             const diff = startX - endX;
