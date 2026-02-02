@@ -66,35 +66,28 @@ document.addEventListener('DOMContentLoaded', function() {
         let autoplayInterval = null;
         let isPaused = false;
 
-        // Get card width including gap
-        function getCardWidth() {
-            const card = cards[0];
-            const style = window.getComputedStyle(card);
-            const width = card.offsetWidth;
-            const marginRight = parseInt(style.marginRight) || 0;
-            const marginLeft = parseInt(style.marginLeft) || 0;
-            return width + marginRight + marginLeft;
-        }
-
         // Get gap from container
         function getGap() {
             const style = window.getComputedStyle(carouselTrack);
-            const gap = style.gap || style.gridGap;
-            return parseInt(gap) || 32; // default 32px
+            const gap = style.gap || style.gridGap || '32px';
+            return parseInt(gap) || 32;
         }
 
-        // Calculate how many cards to show
+        // Calculate how many cards are fully visible
         function getVisibleCards() {
             const containerWidth = carouselContainer.offsetWidth;
             const cardWidth = cards[0].offsetWidth;
             const gap = getGap();
-            return Math.floor((containerWidth + gap) / (cardWidth + gap));
+            const totalCardWidth = cardWidth + gap;
+            return Math.max(1, Math.floor((containerWidth + gap) / totalCardWidth));
         }
 
-        // Get max index
+        // Get max index - ensures we can always scroll at least a bit
         function getMaxIndex() {
             const visible = getVisibleCards();
-            return Math.max(0, cards.length - visible);
+            const maxIdx = cards.length - visible;
+            // Ensure we always have at least 2 positions to scroll through
+            return Math.max(1, maxIdx);
         }
 
         // Move carousel
