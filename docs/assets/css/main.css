@@ -1717,10 +1717,11 @@ body {
 }
 
 .docs-cta-modern .btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
+    display: inline-block;
+    padding: 0.75rem 2rem;
+    font-size: 0.95rem;
+    text-align: center;
+    line-height: 1.5;
 }
 
 .btn-large {
