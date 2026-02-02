@@ -1,0 +1,155 @@
+---
+layout: default
+title: Documentation
+---
+
+<section class="docs-header">
+    <div class="container">
+        <div class="section-header">
+            <span class="section-tag">DOCS</span>
+            <h1>Documentation</h1>
+            <p>Learn how to use WineWarden to secure your gaming experience on Linux.</p>
+        </div>
+    </div>
+</section>
+
+<section class="docs-content">
+    <div class="container">
+        <div class="docs-grid">
+            <div class="doc-card">
+                <div class="doc-icon">
+                    <i class="fas fa-rocket"></i>
+                </div>
+                <h2>Quick Start</h2>
+                <p>Get WineWarden running in under 5 minutes with our step-by-step installation guide.</p>
+                <a href="#installation" class="read-more">Read Guide <i class="fas fa-arrow-right"></i></a>
+            </div>
+
+            <div class="doc-card">
+                <div class="doc-icon">
+                    <i class="fas fa-shield-alt"></i>
+                </div>
+                <h2>Security Features</h2>
+                <p>Understand how WineWarden protects your system with kernel-level sandboxing.</p>
+                <a href="#security" class="read-more">Learn More <i class="fas fa-arrow-right"></i></a>
+            </div>
+
+            <div class="doc-card">
+                <div class="doc-icon">
+                    <i class="fas fa-cog"></i>
+                </div>
+                <h2>Configuration</h2>
+                <p>Customize WineWarden to fit your gaming setup with our configuration guide.</p>
+                <a href="#configuration" class="read-more">View Config <i class="fas fa-arrow-right"></i></a>
+            </div>
+
+            <div class="doc-card">
+                <div class="doc-icon">
+                    <i class="fab fa-steam"></i>
+                </div>
+                <h2>Steam Integration</h2>
+                <p>Configure WineWarden with Steam, Proton, and your favorite games.</p>
+                <a href="#steam" class="read-more">Setup Guide <i class="fas fa-arrow-right"></i></a>
+            </div>
+        </div>
+
+        <div class="docs-section" id="installation">
+            <h2>🚀 Installation</h2>
+            
+            <h3>Prerequisites</h3>
+            <ul>
+                <li>Linux kernel 5.11 or higher</li>
+                <li>Rust 1.75+ (for building from source)</li>
+                <li>libseccomp-dev package</li>
+            </ul>
+
+            <h3>Quick Install</h3>
+            <div class="code-block">
+                <pre><code># Clone the repository
+git clone https://github.com/S1b-Team/winewarden.git
+cd winewarden
+
+# Build release binary
+cargo build --release
+
+# Install locally
+cargo install --path crates/winewarden-cli</code></pre>
+                <button class="copy-btn" onclick="copyCode(this)"><i class="fas fa-copy"></i></button>
+            </div>
+
+            <h3>Initialize Configuration</h3>
+            <div class="code-block">
+                <pre><code>winewarden init</code></pre>
+                <button class="copy-btn" onclick="copyCode(this)"><i class="fas fa-copy"></i></button>
+            </div>
+        </div>
+
+        <div class="docs-section" id="security">
+            <h2>🛡️ Security Features</h2>
+            
+            <h3>Filesystem Virtualization</h3>
+            <p>WineWarden uses mount namespaces and Landlock LSM to create isolated filesystem views. Games can only access their designated sandbox, keeping your personal files safe.</p>
+
+            <h3>Network Monitoring</h3>
+            <p>Real-time DNS and connection tracking lets you see exactly what domains your games are contacting. Full packet parsing reveals hidden telemetry.</p>
+
+            <h3>Process Control</h3>
+            <p>Block shell execution, script interpreters, and suspicious child processes. Prevent games from spawning unexpected binaries.</p>
+        </div>
+
+        <div class="docs-section" id="configuration">
+            <h2>⚙️ Configuration</h2>
+            
+            <p>Configuration file location: <code>~/.config/winewarden/config.toml</code></p>
+
+            <h3>Example Configuration</h3>
+            <div class="code-block">
+                <pre><code>[winewarden]
+enabled = true
+no_prompts_during_gameplay = true
+
+[trust]
+default_tier = "yellow"
+auto_promote = true
+
+[process]
+allowed_patterns = ["wine*", "*.exe"]
+blocked_patterns = ["*nc*", "*powershell*"]
+max_child_processes = 50
+
+[network]
+mode = "observe"
+dns_awareness = true</code></pre>
+                <button class="copy-btn" onclick="copyCode(this)"><i class="fas fa-copy"></i></button>
+            </div>
+        </div>
+
+        <div class="docs-section" id="steam">
+            <h2>🎮 Steam Integration</h2>
+            
+            <h3>Using with Steam</h3>
+            <p>Add this to your game's launch options in Steam:</p>
+            
+            <div class="code-block">
+                <pre><code>winewarden run -- %command%</code></pre>
+                <button class="copy-btn" onclick="copyCode(this)"><i class="fas fa-copy"></i></button>
+            </div>
+
+            <h3>Using with Lutris</h3>
+            <p>In Lutris, add to System Options > Command prefix:</p>
+            
+            <div class="code-block">
+                <pre><code>winewarden run --</code></pre>
+                <button class="copy-btn" onclick="copyCode(this)"><i class="fas fa-copy"></i></button>
+            </div>
+        </div>
+
+        <div class="docs-cta">
+            <h3>Need More Help?</h3>
+            <p>Check out our GitHub repository for detailed documentation and examples.</p>
+            <a href="https://github.com/S1b-Team/winewarden" class="btn btn-primary" target="_blank">
+                <i class="fab fa-github"></i> View on GitHub
+            </a>
+        </div>
+    </div>
+</section>

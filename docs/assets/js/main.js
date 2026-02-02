@@ -29,9 +29,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const navbar = document.querySelector('.navbar');
     window.addEventListener('scroll', function() {
         if (window.scrollY > 50) {
-            navbar.style.background = 'rgba(10, 10, 15, 0.98)';
+            navbar.style.background = 'rgba(15, 23, 42, 0.98)';
         } else {
-            navbar.style.background = 'rgba(10, 10, 15, 0.95)';
+            navbar.style.background = 'rgba(15, 23, 42, 0.95)';
         }
     });
     
@@ -53,6 +53,66 @@ document.addEventListener('DOMContentLoaded', function() {
         el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
         fadeObserver.observe(el);
     });
+
+    // Carousel functionality
+    const carouselTrack = document.querySelector('.carousel-track');
+    const prevBtn = document.querySelector('.carousel-btn.prev');
+    const nextBtn = document.querySelector('.carousel-btn.next');
+    const cards = document.querySelectorAll('.carousel-card');
+
+    if (carouselTrack && cards.length > 0) {
+        let currentIndex = 0;
+        const cardWidth = 350 + 32; // card width + gap
+        const maxIndex = Math.max(0, cards.length - Math.floor(window.innerWidth / cardWidth));
+
+        function updateCarousel() {
+            carouselTrack.style.transform = `translateX(-${currentIndex * cardWidth}px)`;
+        }
+
+        if (prevBtn) {
+            prevBtn.addEventListener('click', () => {
+                currentIndex = Math.max(0, currentIndex - 1);
+                updateCarousel();
+            });
+        }
+
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => {
+                currentIndex = Math.min(maxIndex, currentIndex + 1);
+                updateCarousel();
+            });
+        }
+
+        // Touch/swipe support
+        let startX = 0;
+        let isDragging = false;
+
+        carouselTrack.addEventListener('touchstart', (e) => {
+            startX = e.touches[0].clientX;
+            isDragging = true;
+        });
+
+        carouselTrack.addEventListener('touchmove', (e) => {
+            if (!isDragging) return;
+        });
+
+        carouselTrack.addEventListener('touchend', (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+
+            const endX = e.changedTouches[0].clientX;
+            const diff = startX - endX;
+
+            if (Math.abs(diff) > 50) {
+                if (diff > 0 && currentIndex < maxIndex) {
+                    currentIndex++;
+                } else if (diff < 0 && currentIndex > 0) {
+                    currentIndex--;
+                }
+                updateCarousel();
+            }
+        });
+    }
 });
 
 // Copy code to clipboard

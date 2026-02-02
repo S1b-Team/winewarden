@@ -163,6 +163,199 @@ title: "Game Without Fear"
     </div>
 </section>
 
+<!-- TUI Showcase Section -->
+<section class="tui-showcase" id="tui">
+    <div class="container">
+        <div class="section-header">
+            <span class="section-tag">INTERACTIVE DASHBOARD</span>
+            <h2>Monitor Like a Pro</h2>
+            <p>Finally, a security tool that doesn't look like it was designed in 1995.</p>
+        </div>
+        <div class="tui-demo">
+            <div class="terminal-window">
+                <div class="terminal-header">
+                    <div class="terminal-buttons">
+                        <span class="btn-close"></span>
+                        <span class="btn-minimize"></span>
+                        <span class="btn-maximize"></span>
+                    </div>
+                    <div class="terminal-title">winewarden monitor</div>
+                </div>
+                <div class="terminal-body">
+                    <div class="tui-screen">
+                        <div class="tui-tabs">
+                            <span class="tab active">Dashboard</span>
+                            <span class="tab">Trust</span>
+                            <span class="tab">Network</span>
+                            <span class="tab">Processes</span>
+                            <span class="tab">Events</span>
+                        </div>
+                        <div class="tui-content">
+                            <div class="tui-stats">
+                                <div class="tui-stat">
+                                    <span class="tui-label">Session</span>
+                                    <span class="tui-value">00:42:15</span>
+                                </div>
+                                <div class="tui-stat">
+                                    <span class="tui-label">Trust Tier</span>
+                                    <span class="tui-value tier-yellow">Yellow</span>
+                                </div>
+                                <div class="tui-stat">
+                                    <span class="tui-label">Events/sec</span>
+                                    <span class="tui-value">12.5</span>
+                                </div>
+                                <div class="tui-stat">
+                                    <span class="tui-label">Denied</span>
+                                    <span class="tui-value">2.1%</span>
+                                </div>
+                            </div>
+                            <div class="tui-gauge">
+                                <div class="gauge-label">Trust Score: 75</div>
+                                <div class="gauge-bar">
+                                    <div class="gauge-fill" style="width: 75%"></div>
+                                </div>
+                            </div>
+                            <div class="tui-events">
+                                <div class="event-row">
+                                    <span class="event-time">14:32:01</span>
+                                    <span class="event-type">Read</span>
+                                    <span class="event-target">/prefix/system32/d3d11.dll</span>
+                                </div>
+                                <div class="event-row denied">
+                                    <span class="event-time">14:32:05</span>
+                                    <span class="event-type">Deny</span>
+                                    <span class="event-target">/home/user/.ssh/id_rsa</span>
+                                </div>
+                                <div class="event-row">
+                                    <span class="event-time">14:32:08</span>
+                                    <span class="event-type">Connect</span>
+                                    <span class="event-target">api.steampowered.com:443</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tui-footer">
+                            Tab/→:Next | Shift+Tab/←:Prev | Q:Quit | /:Filter
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="tui-features">
+                <div class="tui-feature">
+                    <i class="fas fa-keyboard"></i>
+                    <h4>Keyboard Driven</h4>
+                    <p>Vim-style navigation. Tab between screens, / to filter, Q to quit.</p>
+                </div>
+                <div class="tui-feature">
+                    <i class="fas fa-chart-line"></i>
+                    <h4>Live Graphs</h4>
+                    <p>Watch your trust score evolve. Sparkline charts show behavior trends.</p>
+                </div>
+                <div class="tui-feature">
+                    <i class="fas fa-filter"></i>
+                    <h4>Smart Filtering</h4>
+                    <p>Filter thousands of events instantly. Find that one suspicious connection.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Features Carousel Section -->
+<section class="features-carousel">
+    <div class="container">
+        <div class="section-header">
+            <span class="section-tag">FEATURES</span>
+            <h2>Explore Capabilities</h2>
+            <p>Swipe or scroll to discover what WineWarden can do for your gaming setup.</p>
+        </div>
+        <div class="carousel-container">
+            <div class="carousel-track">
+                <div class="carousel-card">
+                    <div class="carousel-icon">
+                        <i class="fas fa-folder-tree"></i>
+                    </div>
+                    <h3>Filesystem Virtualization</h3>
+                    <p>Games write to isolated sandboxes, not your real home directory.</p>
+                    <ul>
+                        <li>Mount namespace isolation</li>
+                        <li>Copy-on-write efficiency</li>
+                        <li>Landlock LSM enforcement</li>
+                    </ul>
+                </div>
+                <div class="carousel-card featured">
+                    <div class="carousel-badge">EPIC</div>
+                    <div class="carousel-icon">
+                        <i class="fas fa-terminal"></i>
+                    </div>
+                    <h3>Real-Time TUI Dashboard</h3>
+                    <p>Monitor everything in a slick terminal interface with live updates.</p>
+                    <ul>
+                        <li>5 interactive screens</li>
+                        <li>Trust score graphs</li>
+                        <li>Network & DNS monitoring</li>
+                    </ul>
+                </div>
+                <div class="carousel-card">
+                    <div class="carousel-icon">
+                        <i class="fas fa-network-wired"></i>
+                    </div>
+                    <h3>Network Intelligence</h3>
+                    <p>See every domain queried. Track all outbound connections.</p>
+                    <ul>
+                        <li>Full DNS packet parsing</li>
+                        <li>Destination tracking</li>
+                        <li>Connection telemetry</li>
+                    </ul>
+                </div>
+                <div class="carousel-card">
+                    <div class="carousel-icon">
+                        <i class="fas fa-user-shield"></i>
+                    </div>
+                    <h3>Dynamic Trust Scoring</h3>
+                    <p>Games earn trust based on behavior. Automatic tier adjustments.</p>
+                    <ul>
+                        <li>0-100 scoring system</li>
+                        <li>Behavior analysis</li>
+                        <li>Tier recommendations</li>
+                    </ul>
+                </div>
+                <div class="carousel-card">
+                    <div class="carousel-icon">
+                        <i class="fas fa-ban"></i>
+                    </div>
+                    <h3>Process Lockdown</h3>
+                    <p>Block shells, scripts, and suspicious child processes.</p>
+                    <ul>
+                        <li>Wildcard pattern matching</li>
+                        <li>Shell/script blocking</li>
+                        <li>Process limits</li>
+                    </ul>
+                </div>
+                <div class="carousel-card">
+                    <div class="carousel-icon">
+                        <i class="fas fa-code"></i>
+                    </div>
+                    <h3>Seccomp Interception</h3>
+                    <p>Kernel-level syscall filtering without kernel modules.</p>
+                    <ul>
+                        <li>Real-time syscall filtering</li>
+                        <li>Policy enforcement</li>
+                        <li>No kernel modules</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="carousel-controls">
+            <button class="carousel-btn prev" aria-label="Previous">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <button class="carousel-btn next" aria-label="Next">
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+</section>
+
 <!-- Installation Section -->
 <section class="install" id="install">
     <div class="container">
