@@ -9,14 +9,14 @@
     
     {% seo %}
     
-    <link rel="stylesheet" href="{{ "/assets/css/main.css" | relative_url }}">
+    <link rel="stylesheet" href="{{ site.baseurl }}/assets/css/main.css">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     {% feed_meta %}
     
     <!-- Favicon -->
-    <link rel="icon" type="image/png" href="{{ "/assets/images/favicon.png" | relative_url }}">
+    <link rel="icon" type="image/png" href="{{ site.baseurl }}/assets/images/favicon.png">
 </head>
 <body class="{% if page.layout == 'post' %}post-page{% endif %}">
     
@@ -28,6 +28,6 @@
     
     {% include footer.html %}
     
-    <script src="{{ "/assets/js/main.js" | relative_url }}"></script>
+    <script src="{{ site.baseurl }}/assets/js/main.js"></script>
 </body>
 </html>
