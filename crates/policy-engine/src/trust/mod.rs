@@ -1,2 +1,2 @@
-pub mod tiers;
 pub mod scoring;
+pub mod tiers;

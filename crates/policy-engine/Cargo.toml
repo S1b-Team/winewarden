@@ -9,3 +9,6 @@ anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 winewarden-core = { path = "../winewarden-core" }
+
+[dev-dependencies]
+time.workspace = true

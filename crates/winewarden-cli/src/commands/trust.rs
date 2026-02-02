@@ -8,8 +8,13 @@ use winewarden_core::trust::TrustTier;
 
 #[derive(Debug)]
 pub enum TrustAction {
-    Get { executable: PathBuf },
-    Set { executable: PathBuf, tier: TrustTier },
+    Get {
+        executable: PathBuf,
+    },
+    Set {
+        executable: PathBuf,
+        tier: TrustTier,
+    },
 }
 
 pub fn execute(action: TrustAction) -> Result<()> {

@@ -3,7 +3,9 @@ use std::path::PathBuf;
 use anyhow::Result;
 
 use winewarden_core::config::ConfigPaths;
-use winewarden_core::ipc::{WineWardenRequest, WineWardenResponse, resolve_socket_path, send_request};
+use winewarden_core::ipc::{
+    resolve_socket_path, send_request, WineWardenRequest, WineWardenResponse,
+};
 use winewarden_core::store::{ExecutableIdentity, TrustStore};
 use winewarden_core::trust::TrustTier;
 

@@ -3,14 +3,25 @@ use std::process::Command;
 
 use anyhow::{Context, Result};
 
-use winewarden_core::ipc::{WineWardenRequest, WineWardenResponse, resolve_pid_path, resolve_socket_path, send_request};
+use winewarden_core::ipc::{
+    resolve_pid_path, resolve_socket_path, send_request, WineWardenRequest, WineWardenResponse,
+};
 
 #[derive(Debug)]
 pub enum DaemonAction {
-    Start { socket: Option<PathBuf>, pid: Option<PathBuf> },
-    Stop { pid: Option<PathBuf> },
-    Ping { socket: Option<PathBuf> },
-    Status { socket: Option<PathBuf> },
+    Start {
+        socket: Option<PathBuf>,
+        pid: Option<PathBuf>,
+    },
+    Stop {
+        pid: Option<PathBuf>,
+    },
+    Ping {
+        socket: Option<PathBuf>,
+    },
+    Status {
+        socket: Option<PathBuf>,
+    },
     SocketPath,
     PidPath,
 }

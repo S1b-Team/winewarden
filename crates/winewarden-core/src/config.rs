@@ -12,6 +12,7 @@ use crate::trust::TrustTier;
 pub struct Config {
     pub winewarden: WineWardenConfig,
     pub trust: TrustConfig,
+    pub process: ProcessConfig,
     pub sacred_zones: Vec<SacredZoneConfig>,
     pub network: NetworkConfig,
     pub prefix: PrefixConfig,
@@ -32,6 +33,15 @@ pub struct TrustConfig {
     pub pirate_safe: bool,
     pub auto_promote: bool,
     pub promotion_after_runs: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProcessConfig {
+    pub allowed_patterns: Vec<String>,
+    pub blocked_patterns: Vec<String>,
+    pub max_child_processes: u32,
+    pub allow_shell_execution: bool,
+    pub allow_script_execution: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -95,6 +105,22 @@ impl Config {
                 pirate_safe: false,
                 auto_promote: true,
                 promotion_after_runs: 3,
+            },
+            process: ProcessConfig {
+                allowed_patterns: vec![
+                    "wine*".to_string(),
+                    "wineserver".to_string(),
+                    "*.exe".to_string(),
+                ],
+                blocked_patterns: vec![
+                    "*nc*".to_string(),
+                    "*netcat*".to_string(),
+                    "*powershell*".to_string(),
+                    "*cmd.exe*".to_string(),
+                ],
+                max_child_processes: 50,
+                allow_shell_execution: false,
+                allow_script_execution: false,
             },
             sacred_zones: vec![
                 SacredZoneConfig {
@@ -164,8 +190,7 @@ impl Config {
                 .with_context(|| format!("create config dir {}", parent.display()))?;
         }
         let contents = self.to_toml_string()?;
-        fs::write(path, contents)
-            .with_context(|| format!("write config at {}", path.display()))?;
+        fs::write(path, contents).with_context(|| format!("write config at {}", path.display()))?;
         Ok(())
     }
 }

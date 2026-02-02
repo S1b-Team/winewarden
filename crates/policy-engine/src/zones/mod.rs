@@ -1,2 +1,2 @@
-pub mod sacred;
 pub mod redirects;
+pub mod sacred;

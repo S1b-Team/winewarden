@@ -1,5 +1,5 @@
 use std::path::Path;
-use std::sync::mpsc::{Receiver, channel};
+use std::sync::mpsc::{channel, Receiver};
 
 use anyhow::{Context, Result};
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
@@ -20,7 +20,10 @@ impl FsWatcher {
         watcher
             .watch(path, RecursiveMode::Recursive)
             .with_context(|| format!("watch {}", path.display()))?;
-        Ok(Self { _watcher: watcher, receiver })
+        Ok(Self {
+            _watcher: watcher,
+            receiver,
+        })
     }
 
     pub fn drain(&mut self) -> Vec<AccessAttempt> {

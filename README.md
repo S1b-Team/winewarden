@@ -15,326 +15,398 @@
   <img alt="License" src="https://img.shields.io/github/license/ind4skylivey/winewarden" />
   <img alt="Rust" src="https://img.shields.io/badge/rust-1.75%2B-ff7a18" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-linux-4caf50" />
-  <img alt="Status" src="https://img.shields.io/badge/status-pre--alpha-ff5252" />
+  <img alt="Tests" src="https://img.shields.io/badge/tests-44%20passing-brightgreen" />
+  <img alt="Status" src="https://img.shields.io/badge/status-beta-ff9800" />
 </p>
 
-"Play Windows games on Linux without trusting random executables with your system."
+> "Play Windows games on Linux without trusting random executables with your system."
 
-WineWarden is a calm, always-on protection layer for Wine, Proton, Lutris, and Steam. It is not an antivirus. It does not moralize. It exists so you can play without anxiety.
+WineWarden is a calm, always-on protection layer for Wine, Proton, Lutris, and Steam. It provides **real-time filesystem virtualization**, **network monitoring**, **process sandboxing**, and **dynamic trust scoring** — all through an elegant terminal interface.
 
 ```
 ==[ W I N E W A R D E N ]===================================================
 calm by design · silent by default · strict by choice
-===========================================================================
+==============================================================================
 ```
 
-## What It Is
+## ✨ What's New (Recently Implemented)
 
-- Active Enforcement: Landlock sandboxing and Seccomp syscall interception
-- WineWarden Mode: silent protection with no prompts during gameplay
-- Trust Tiers: clear reassurance signals (Green, Yellow, Red)
-- Sacred Zones: protect the places games should never need
-- Prefix Hygiene: keep prefixes clean and stable over time
-- Network Safety: observe without breaking multiplayer
-- Pirate-Safe Mode: stronger isolation with zero judgment
-- Human Reports: short, calm summaries after each run
+### 🛡️ Filesystem Virtualization (Phase 1)
+- **Mount Namespace Isolation**: Creates private filesystem namespaces with bind-mount virtualization
+- **Path Mapping**: Prefix-based redirects (e.g., `${HOME}` → `${DATA_DIR}/virtual/home`)
+- **Copy-on-Write**: First-write semantics for efficient file virtualization
+- **Landlock Sandbox**: Kernel-level access control for defense-in-depth
 
-## Why It Feels Different
+### 🌐 Network Awareness (Phase 2)
+- **DNS Packet Parser**: Full parsing of DNS queries/responses (A, AAAA, CNAME, MX, NS, TXT, SRV)
+- **Destination Tracking**: Monitors outbound connections and unique destinations
+- **Network Telemetry**: Tracks connection success rates, protocols, and ports
+- **Real-time Interception**: Seccomp-based syscall interception for connect/bind
 
-- Secure by default
-- Easy to relax
-- Hard to break accidentally
-- No popups mid-game
-- No shame, no fear
+### 🔒 Process Security (Phase 3)
+- **Process Policy Engine**: Wildcard pattern matching for allowed/blocked processes
+- **Shell & Script Blocking**: Prevents execution of bash, powershell, Python scripts, etc.
+- **Child Process Limits**: Configurable maximum process count (prevents fork bombs)
+- **Dynamic Trust Scoring**: 0-100 score based on runtime behavior with trend analysis
 
-## Active Protection & Requirements
+### 📊 Interactive TUI Dashboard (Phase 4)
+- **Real-time Monitoring**: Live session statistics with 20 FPS rendering
+- **5 Interactive Screens**:
+  - 📈 **Dashboard**: Session timer, trust gauge, event rate, denial statistics
+  - 🎯 **Trust**: Current score, recommended tier, history sparkline graph
+  - 🌐 **Network**: Active connections table, DNS queries with resolved IPs
+  - ⚙️ **Processes**: Process list with status indicators (●/⏸/✗) and runtime
+  - 📋 **Events**: Filterable event log with timestamp, kind, target, notes
+- **Keyboard Navigation**: Tab/arrows for screens, `/` to filter, Q to quit
 
-WineWarden now enforces security actively using kernel-level features:
-- **Landlock LSM:** Creates a strict filesystem sandbox, blocking access to your personal files (`$HOME`, `.ssh`, etc.) unless explicitly allowed.
-- **Seccomp User Notification:** Intercepts network calls (`connect`, `bind`) in real-time, allowing the Policy Engine to decide based on destination IP/Port.
+## 🚀 Quick Start
+
+```bash
+# Build from source
+cargo build --release
+
+# Install binaries
+cargo install --path crates/winewarden-cli
+cargo install --path crates/winewarden-daemon
+
+# Initialize configuration
+winewarden init
+
+# Launch the TUI dashboard (NEW!)
+winewarden monitor
+
+# Run a game with full protection
+winewarden run /path/to/game.exe -- -arg1 -arg2
+
+# Run via daemon for background monitoring
+winewarden daemon start
+winewarden run --daemon /path/to/game.exe
+```
+
+## 🎮 Interactive TUI
+
+Launch the real-time monitoring dashboard:
+
+```bash
+winewarden monitor
+```
+
+**Keyboard Controls:**
+| Key | Action |
+|-----|--------|
+| `Tab` / `→` | Next screen |
+| `Shift+Tab` / `←` | Previous screen |
+| `1-5` | Jump to specific screen |
+| `Q` | Quit |
+| `P` | Pause/Resume monitoring |
+| `/` | Filter events (Events screen) |
+| `↑↓` | Scroll events |
+| `Home/End` | Jump to start/end |
+| `Esc` | Clear filter |
+
+## 🛡️ Security Features
+
+### Active Enforcement
+WineWarden now uses **kernel-level security mechanisms**:
+
+- **Landlock LSM**: Filesystem sandbox blocking access to personal files (`$HOME`, `.ssh`, `.gnupg`)
+- **Seccomp Notify**: Real-time syscall interception for network calls (`connect`, `bind`)
+- **Mount Namespaces**: Private filesystem views with bind-mount virtualization
+- **Path Virtualization**: Automatic redirect of sensitive paths to isolated locations
 
 ### System Requirements
-- **Linux Kernel 5.11+** (Required for Landlock and Seccomp Notify)
+- **Linux Kernel 5.11+** (for Landlock and Seccomp Notify)
 - **libseccomp** development headers:
   - Debian/Ubuntu: `sudo apt install libseccomp-dev`
   - Fedora: `sudo dnf install libseccomp-devel`
   - Arch: `sudo pacman -S libseccomp`
 
-## Installation
+## 📋 Command Reference
 
-```bash
-# 1. Build from source
-cargo build --release
-
-# 2. Install binaries
-cargo install --path crates/winewarden-cli
-cargo install --path crates/winewarden-daemon
-```
-
-## Quick Start
+### Core Commands
 
 ```bash
 # Initialize config
 winewarden init
 
-# Run a game quietly (no prompts during gameplay)
+# Run a game
 winewarden run /path/to/game.exe -- -arg1 -arg2
 
-# Run with a provided event log (JSONL of AccessAttempt)
-winewarden run /path/to/game.exe --event-log tests/fixtures/events.jsonl --no-run
+# Run with live monitoring
+winewarden run --live-fs --live-proc --live-net /path/to/game.exe
 
-# View a report
+# Launch TUI dashboard (NEW!)
+winewarden monitor
+
+# View reports
 winewarden report --input ~/.local/share/winewarden/reports/<id>.json
 ```
 
-## Interactive Guide (Full Tour)
-
-<details>
-<summary><strong>[+] 1) Install from source</strong></summary>
+### Trust Management
 
 ```bash
-cargo build --release
-cargo install --path crates/winewarden-cli
-cargo install --path crates/winewarden-daemon
-```
-```
-Tip: use a dedicated Rust toolchain for reproducible builds.
-```
-</details>
-
-<details>
-<summary><strong>[+] 2) Initialize config</strong></summary>
-
-```bash
-winewarden init
-```
-
-Config file lives at: `~/.config/winewarden/config.toml`
-```
-Config path: ~/.config/winewarden/config.toml
-Reports:     ~/.local/share/winewarden/reports/
-```
-</details>
-
-<details>
-<summary><strong>[+] 3) Run a game (direct)</strong></summary>
-
-```bash
-winewarden run /path/to/game.exe -- -arg1 -arg2
-```
-```
-No prompts during gameplay. Summary after exit.
-```
-</details>
-
-<details>
-<summary><strong>[+] 4) Run via daemon (background mode)</strong></summary>
-
-```bash
-winewarden daemon start
-winewarden run --daemon /path/to/game.exe -- -arg1 -arg2
-winewarden daemon status
-```
-```
-Daemon uses a local Unix socket with user-only access.
-```
-</details>
-
-<details>
-<summary><strong>[+] 5) Live monitoring (optional)</strong></summary>
-
-```bash
-# All live monitors
-winewarden run --live /path/to/game.exe -- -arg1 -arg2
-
-# Or pick specific channels
-winewarden run --live-fs --live-proc --live-net --poll-ms 250 /path/to/game.exe -- -arg1
-```
-```
-Live monitoring observes only; it does not interrupt gameplay.
-```
-</details>
-
-<details>
-<summary><strong>[+] 6) Trust tiers (pin or relax)</strong></summary>
-
-```bash
-# Inspect trust tier for an executable
+# Check trust tier
 winewarden trust get /path/to/game.exe
 
-# Pin a tier
+# Set trust tier (green/yellow/red)
 winewarden trust set /path/to/game.exe green
-```
-```
-Green = known safe behavior
-Yellow = unknown but non-hostile
-Red = strict isolation
-```
-</details>
 
-<details>
-<summary><strong>[+] 7) Prefix hygiene</strong></summary>
+# View trust status
+winewarden status /path/to/game.exe
+```
+
+### Prefix Hygiene
 
 ```bash
+# Scan prefix for issues
 winewarden prefix scan /path/to/prefix
+
+# Create snapshot
 winewarden prefix snapshot /path/to/prefix
 ```
-```
-Prefix hygiene keeps the ecosystem stable over time.
-```
-</details>
 
-<details>
-<summary><strong>[+] 8) Reports (human + JSON)</strong></summary>
+### Daemon Mode
 
 ```bash
-winewarden report --input ~/.local/share/winewarden/reports/<id>.json
-winewarden report --input ~/.local/share/winewarden/reports/<id>.json --json
-```
-```
-Human summaries by default. Structured JSON on demand.
-```
-</details>
-
-<details>
-<summary><strong>[+] 9) Integration snippets (real paths)</strong></summary>
-
-```bash
-# Steam (Launch Options):
-winewarden run -- %command%
-
-# Steam (example Windows game path):
-~/.steam/steam/steamapps/common/SomeGame/SomeGame.exe
-
-# Proton prefix (example, for reference only):
-~/.steam/steam/steamapps/compatdata/123456/pfx/drive_c/
-
-# Lutris (example prefix and game path):
-~/.local/share/lutris/runners/wine/wine-ge-8-26-x86_64
-~/Games/SomeGame/drive_c/Program Files/SomeGame/SomeGame.exe
-
-# Heroic (example default install path):
-~/Games/Heroic/SomeGame/SomeGame.exe
-```
-
-See:
-- `integrations/steam/README.md`
-- `integrations/lutris/README.md`
-- `integrations/heroic/README.md`
-</details>
-
-<details>
-<summary><strong>[+] 10) Profiles (default / relaxed / pirate-safe)</strong></summary>
-
-Copy one of the presets into your config location:
-
-```bash
-cp config/default.toml ~/.config/winewarden/config.toml
-# or
-cp config/relaxed.toml ~/.config/winewarden/config.toml
-# or
-cp config/pirate-safe.toml ~/.config/winewarden/config.toml
-```
-</details>
-
-## Flow Maps (Mini Diagrams)
-
-```
-Execution Flow
--------------
-winewarden run
-   |
-   v
-[Runner] --> [Monitor] --> [Policy Engine] --> [Reporting]
-   |             |                |
-   v             v                v
-Prefix Manager  Live Watch      Trust Tiers
-```
-
-```
-Decision Flow
--------------
-Access Attempt
-   |
-   v
-Sacred Zone? ---> yes ---> Deny / Redirect / Virtualize
-   |
-   no
-   |
-   v
-Inside Prefix? ---> no ---> Deny
-   |
-   yes
-   |
-   v
-Allow + Log
-```
-
-## Daemon Mode
-
-```bash
-# Start the background daemon
+# Start background daemon
 winewarden daemon start
 
-# Run a game through the daemon
-winewarden run --daemon /path/to/game.exe -- -arg1 -arg2
+# Run through daemon
+winewarden run --daemon /path/to/game.exe
 
-# Check daemon health
+# Check daemon status
+winewarden daemon status
 winewarden daemon ping
 ```
 
-## Architecture (Separation of Concerns)
+## ⚙️ Configuration
 
-- Policy Engine: decisions only
-- Monitor: observation without interruption
-- Runner: safe command construction
-- Prefix Manager: hygiene, snapshots, quarantine
-- Reporting: human summaries and JSON
-- WineWarden Daemon: background scheduling
+Configuration is TOML-based and human-readable:
+
+```toml
+# ~/.config/winewarden/config.toml
+
+[winewarden]
+enabled = true
+no_prompts_during_gameplay = true
+emergency_only = true
+
+[trust]
+default_tier = "yellow"
+auto_promote = true
+promotion_after_runs = 3
+
+[process]
+allowed_patterns = ["wine*", "*.exe"]
+blocked_patterns = ["*nc*", "*powershell*", "*cmd.exe*"]
+max_child_processes = 50
+allow_shell_execution = false
+allow_script_execution = false
+
+[network]
+mode = "observe"
+dns_awareness = true
+destination_monitoring = true
+
+[sacred_zones]
+[[sacred_zones.zones]]
+label = "SSH keys"
+path = "${HOME}/.ssh"
+action = "deny"
+
+[[sacred_zones.zones]]
+label = "Home directory"
+path = "${HOME}"
+action = "redirect"
+redirect_to = "${DATA_DIR}/virtual/home"
+```
+
+**Environment Variables:**
+- `WINEWARDEN_REDIRECT_MAP` - Custom path mappings (e.g., `"${HOME}:/virtual/home,/tmp:/virtual/tmp"`)
+- `WINEWARDEN_SOCKET` - Custom daemon socket path
+- `WINEWARDEN_PID` - Custom PID file path
+
+## 🏗️ Architecture
 
 ```
-   [Runner] → [Monitor] → [Policy Engine] → [Reporting]
-        ↘        ↘              ↘              ↘
-     [Prefix Manager]        [Trust Tiers]   [Human Reports]
+┌─────────────────────────────────────────────────────────────┐
+│                        WineWarden CLI                        │
+│                    (TUI + Commands)                          │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+    ┌────────────────┼────────────────┐
+    │                │                │
+    ▼                ▼                ▼
+┌─────────┐    ┌──────────┐    ┌──────────┐
+│ Monitor │◄──►│ Policy   │◄──►│ NetCompat│
+│ (Sandbox)│    │ Engine   │    │ (DNS/Net)│
+└────┬────┘    └────┬─────┘    └────┬─────┘
+     │              │               │
+     ▼              ▼               ▼
+┌─────────┐    ┌──────────┐    ┌──────────┐
+│Landlock │    │ Process  │    │ Telemetry│
+│Mount NS │    │ Rules    │    │ Tracking │
+│Seccomp  │    │ Trust    │    │          │
+└─────────┘    │ Scoring  │    └──────────┘
+               └──────────┘
 ```
 
-## Configuration
+### Crate Structure
 
-Configuration is TOML and readable by design. See:
+- **`winewarden-core`**: Shared types, config, trust store, IPC
+- **`winewarden-cli`**: Main CLI binary with TUI
+- **`winewarden-daemon`**: Background daemon for persistent monitoring
+- **`monitor`**: Sandbox implementation (Landlock, Seccomp, Mount NS)
+- **`policy-engine`**: Decision engine with process rules and trust scoring
+- **`net-compat`**: DNS parsing, destination tracking, network telemetry
+- **`prefix-manager`**: Prefix hygiene, snapshots, quarantine
+- **`reporting`**: Report generation (human + JSON)
+- **`runner`**: Safe command construction and execution
 
-- `config/default.toml`
-- `config/relaxed.toml`
-- `config/pirate-safe.toml`
+## 📊 Trust Tiers
 
-Variables supported:
+| Tier | Color | Behavior |
+|------|-------|----------|
+| **Green** | 🟢 | Trusted, minimal restrictions |
+| **Yellow** | 🟡 | Unknown, balanced protection (default) |
+| **Red** | 🔴 | Untrusted, strict isolation |
 
-- `${HOME}`
-- `${DATA_DIR}`
-- `${CONFIG_DIR}`
+Trust scores (0-100) are calculated dynamically based on:
+- Sensitive path access attempts
+- Network destination diversity
+- Child process spawning
+- Denied access attempts
+- Behavior consistency over time
 
-## Reports (Human First)
+## 🎮 Integration Examples
 
-Examples of the tone you should expect:
+### Steam (Launch Options)
+```bash
+winewarden run -- %command%
+```
 
-- "This game tried to access files outside its sandbox."
-- "That access was denied."
-- "Your system remains intact."
+### Lutris (System Options)
+```bash
+# Pre-launch script
+winewarden run
 
-## Documentation
+# Or full path
+winewarden run /path/to/game.exe
+```
 
-- [docs/vision.md](docs/vision.md)
-- [docs/threat-model.md](docs/threat-model.md)
-- [docs/winewarden-mode.md](docs/winewarden-mode.md)
-- [docs/trust-tiers.md](docs/trust-tiers.md)
-- [docs/sacred-zones.md](docs/sacred-zones.md)
-- [docs/prefix-hygiene.md](docs/prefix-hygiene.md)
-- [docs/networking.md](docs/networking.md)
-- [docs/pirate-safe-mode.md](docs/pirate-safe-mode.md)
-- [docs/reports.md](docs/reports.md)
-- [docs/configuration.md](docs/configuration.md)
-- [docs/architecture.md](docs/architecture.md)
-- [docs/glossary.md](docs/glossary.md)
+### Heroic Games Launcher
+Configure the wrapper in game settings to use `winewarden run`.
 
-## Status
+## 📈 Flow Diagrams
 
-The foundation is solid. Active enforcement hooks (Landlock and Seccomp) are implemented and integrated into the monitor layer, providing real protection without changing the calm user experience.
+### Execution Flow
+```
+winewarden run
+       │
+       ▼
+┌──────────────┐
+│  Mount NS    │──► Create private filesystem namespace
+│  Setup       │
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│  Landlock    │──► Apply filesystem sandbox rules
+│  Sandbox     │
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│  Seccomp     │──► Install syscall interception
+│  Filter      │
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐     ┌──────────────┐
+│  Monitor     │◄───►│  Policy      │
+│  (Events)    │     │  Engine      │
+└──────┬───────┘     └──────────────┘
+       │
+       ▼
+┌──────────────┐
+│  TUI/        │──► Real-time visualization
+│  Reporting   │
+└──────────────┘
+```
+
+### Policy Decision Flow
+```
+Access Attempt
+       │
+       ▼
+┌──────────────┐
+│ Sacred Zone? │──► Yes ──► Deny / Redirect / Virtualize
+└──────┬───────┘
+       │ No
+       ▼
+┌──────────────┐
+│ Process      │──► Check patterns, limits, shell detection
+│ Policy?      │
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│ Network      │──► Check destinations, DNS, telemetry
+│ Policy?      │
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│  Allow + Log │──► Update trust score, record telemetry
+└──────────────┘
+```
+
+## 🧪 Testing
+
+```bash
+# Run all tests
+cargo test --all
+
+# Run specific crate tests
+cargo test -p monitor
+cargo test -p policy-engine
+cargo test -p net-compat
+
+# Run with coverage
+cargo tarpaulin --all
+```
+
+## 📚 Documentation
+
+- [docs/vision.md](docs/vision.md) - Project vision and goals
+- [docs/threat-model.md](docs/threat-model.md) - Security threat model
+- [docs/winewarden-mode.md](docs/winewarden-mode.md) - WineWarden mode philosophy
+- [docs/trust-tiers.md](docs/trust-tiers.md) - Trust tier system
+- [docs/sacred-zones.md](docs/sacred-zones.md) - Sacred zones concept
+- [docs/prefix-hygiene.md](docs/prefix-hygiene.md) - Prefix maintenance
+- [docs/networking.md](docs/networking.md) - Network monitoring
+- [docs/pirate-safe-mode.md](docs/pirate-safe-mode.md) - Pirate-safe mode
+- [docs/reports.md](docs/reports.md) - Report format
+- [docs/configuration.md](docs/configuration.md) - Configuration reference
+- [docs/architecture.md](docs/architecture.md) - System architecture
+- [docs/glossary.md](docs/glossary.md) - Terminology
+
+## 🤝 Contributing
+
+Contributions are welcome! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- Landlock LSM team for the sandboxing technology
+- The Wine and Proton projects for Windows compatibility
+- The Rust community for excellent tools and libraries
+
+---
+
+<p align="center">
+  <strong>Calm by design · Silent by default · Strict by choice</strong>
+</p>

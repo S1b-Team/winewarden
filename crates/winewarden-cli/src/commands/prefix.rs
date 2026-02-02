@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 
-use winewarden_core::config::ConfigPaths;
 use prefix_manager::PrefixManager;
+use winewarden_core::config::ConfigPaths;
 
 #[derive(Debug)]
 pub enum PrefixAction {

@@ -4,16 +4,18 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 
-use winewarden_core::config::{Config, ConfigPaths};
-use winewarden_core::store::{ExecutableIdentity, TrustStore};
-use winewarden_core::trust::TrustTier;
-use winewarden_core::types::LiveMonitorConfig;
-use winewarden_core::ipc::{WineWardenRequest, WineWardenResponse, RunRequestPayload, resolve_socket_path, send_request};
 use monitor::{Monitor, RunRequest};
 use policy_engine::PolicyEngine;
 use prefix_manager::PrefixManager;
 use reporting::SessionReport;
 use runner::{Runner, RunnerRequest};
+use winewarden_core::config::{Config, ConfigPaths};
+use winewarden_core::ipc::{
+    resolve_socket_path, send_request, RunRequestPayload, WineWardenRequest, WineWardenResponse,
+};
+use winewarden_core::store::{ExecutableIdentity, TrustStore};
+use winewarden_core::trust::TrustTier;
+use winewarden_core::types::LiveMonitorConfig;
 
 pub struct RunInputs {
     pub config_path: Option<PathBuf>,
@@ -33,7 +35,10 @@ pub fn execute(inputs: RunInputs) -> Result<()> {
         return run_via_daemon(inputs);
     }
     let paths = ConfigPaths::resolve()?;
-    let config_path = inputs.config_path.clone().unwrap_or(paths.config_path.clone());
+    let config_path = inputs
+        .config_path
+        .clone()
+        .unwrap_or(paths.config_path.clone());
     let config = Config::load(&config_path).with_context(|| {
         format!(
             "load config at {} (run `winewarden init` if missing)",
@@ -43,7 +48,8 @@ pub fn execute(inputs: RunInputs) -> Result<()> {
 
     let mut trust_store = TrustStore::load(&paths.trust_db_path)?;
     let identity = ExecutableIdentity::from_path(&inputs.executable)?;
-    let base_tier = inputs.trust_override
+    let base_tier = inputs
+        .trust_override
         .or_else(|| trust_store.get_tier(&identity))
         .unwrap_or(config.trust.default_tier);
 
@@ -52,9 +58,13 @@ pub fn execute(inputs: RunInputs) -> Result<()> {
         trust_tier = downgrade_tier(trust_tier);
     }
 
-    let prefix_root = inputs.prefix.unwrap_or_else(|| default_prefix_path(&paths, trust_tier));
+    let prefix_root = inputs
+        .prefix
+        .unwrap_or_else(|| default_prefix_path(&paths, trust_tier));
 
-    if config.prefix.snapshot_before_first_run && !trust_store.records.contains_key(&identity.sha256) {
+    if config.prefix.snapshot_before_first_run
+        && !trust_store.records.contains_key(&identity.sha256)
+    {
         let manager = PrefixManager::new(prefix_root.clone(), &paths);
         let _snapshot = manager.create_snapshot()?;
     }

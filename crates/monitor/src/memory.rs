@@ -1,7 +1,7 @@
-use std::io::IoSliceMut;
+use anyhow::{Context, Result};
 use nix::sys::uio::{process_vm_readv, RemoteIoVec};
 use nix::unistd::Pid;
-use anyhow::{Context, Result};
+use std::io::IoSliceMut;
 
 /// Reads memory from a remote process.
 pub fn read_remote_memory(pid: i32, remote_addr: u64, len: usize) -> Result<Vec<u8>> {
@@ -20,7 +20,11 @@ pub fn read_remote_memory(pid: i32, remote_addr: u64, len: usize) -> Result<Vec<
     if bytes_read != len {
         // It's possible to read less if we hit unmapped memory, but for a sockaddr it shouldn't happen
         // unless the game is buggy or malicious.
-        return Err(anyhow::anyhow!("Partial read: expected {} bytes, got {}", len, bytes_read));
+        return Err(anyhow::anyhow!(
+            "Partial read: expected {} bytes, got {}",
+            len,
+            bytes_read
+        ));
     }
 
     Ok(buffer)

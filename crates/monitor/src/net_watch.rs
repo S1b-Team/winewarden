@@ -75,5 +75,8 @@ fn parse_remote(value: &str) -> Option<(String, u16)> {
 fn ipv4_from_hex(value: &str) -> Option<String> {
     let raw = u32::from_str_radix(value, 16).ok()?;
     let bytes = raw.to_le_bytes();
-    Some(format!("{}.{}.{}.{}", bytes[0], bytes[1], bytes[2], bytes[3]))
+    Some(format!(
+        "{}.{}.{}.{}",
+        bytes[0], bytes[1], bytes[2], bytes[3]
+    ))
 }

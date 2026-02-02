@@ -16,5 +16,8 @@ policy-engine = { path = "../policy-engine" }
 reporting = { path = "../reporting" }
 landlock = "0.4.4"
 libseccomp = "0.4.0"
-nix = { version = "0.30.1", features = ["fs", "socket", "uio", "process", "poll", "ioctl"] }
+nix = { version = "0.30.1", features = ["fs", "socket", "uio", "process", "poll", "ioctl", "mount", "sched", "user"] }
 byteorder = "1.5.0"
+
+[dev-dependencies]
+tempfile = "3.10"

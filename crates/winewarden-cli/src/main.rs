@@ -10,7 +10,11 @@ mod commands;
 mod tui;
 
 #[derive(Parser, Debug)]
-#[command(name = "winewarden", version, about = "Calm protection for Windows games on Linux")]
+#[command(
+    name = "winewarden",
+    version,
+    about = "Calm protection for Windows games on Linux"
+)]
 struct Cli {
     #[arg(long, global = true)]
     config: Option<PathBuf>,
@@ -80,12 +84,23 @@ enum Commands {
         #[arg(long)]
         print: bool,
     },
+    /// Launch interactive TUI dashboard
+    Monitor {
+        /// Session ID to monitor (optional, starts new if not provided)
+        #[arg(long)]
+        session: Option<String>,
+    },
 }
 
 #[derive(Subcommand, Debug)]
 enum TrustCommand {
-    Get { executable: PathBuf },
-    Set { executable: PathBuf, tier: TrustTier },
+    Get {
+        executable: PathBuf,
+    },
+    Set {
+        executable: PathBuf,
+        tier: TrustTier,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -152,25 +167,35 @@ fn main() -> Result<()> {
         Commands::Report { input, json } => commands::report::execute(&input, json),
         Commands::Trust { action } => {
             let action = match action {
-                TrustCommand::Get { executable } => commands::trust::TrustAction::Get { executable },
-                TrustCommand::Set { executable, tier } => commands::trust::TrustAction::Set { executable, tier },
+                TrustCommand::Get { executable } => {
+                    commands::trust::TrustAction::Get { executable }
+                }
+                TrustCommand::Set { executable, tier } => {
+                    commands::trust::TrustAction::Set { executable, tier }
+                }
             };
             commands::trust::execute(action)
         }
         Commands::Prefix { action } => {
             let action = match action {
                 PrefixCommand::Scan { prefix } => commands::prefix::PrefixAction::Scan { prefix },
-                PrefixCommand::Snapshot { prefix } => commands::prefix::PrefixAction::Snapshot { prefix },
+                PrefixCommand::Snapshot { prefix } => {
+                    commands::prefix::PrefixAction::Snapshot { prefix }
+                }
             };
             commands::prefix::execute(action)
         }
         Commands::Status { executable, daemon } => commands::status::execute(executable, daemon),
         Commands::Daemon { action } => {
             let action = match action {
-                DaemonCommand::Start { socket, pid } => commands::daemon::DaemonAction::Start { socket, pid },
+                DaemonCommand::Start { socket, pid } => {
+                    commands::daemon::DaemonAction::Start { socket, pid }
+                }
                 DaemonCommand::Stop { pid } => commands::daemon::DaemonAction::Stop { pid },
                 DaemonCommand::Ping { socket } => commands::daemon::DaemonAction::Ping { socket },
-                DaemonCommand::Status { socket } => commands::daemon::DaemonAction::Status { socket },
+                DaemonCommand::Status { socket } => {
+                    commands::daemon::DaemonAction::Status { socket }
+                }
                 DaemonCommand::SocketPath => commands::daemon::DaemonAction::SocketPath,
                 DaemonCommand::PidPath => commands::daemon::DaemonAction::PidPath,
             };
@@ -182,6 +207,10 @@ fn main() -> Result<()> {
             } else {
                 Ok(())
             }
+        }
+        Commands::Monitor { session: _ } => {
+            // Launch the TUI
+            tui::run_tui()
         }
     }
 }
