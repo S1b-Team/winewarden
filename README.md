@@ -397,7 +397,12 @@ Contributions are welcome! Please see our [Contributing Guide](CONTRIBUTING.md) 
 
 ## 📝 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is proprietary software. All rights reserved.
+
+Copyright (c) 2025 S1BGr0up (https://github.com/S1b-Team)  
+Author: ind4skylivey (https://github.com/ind4skylivey)
+
+See the [LICENSE](LICENSE) file for full terms. Commercial licenses and permissions are available upon request.
 
 ## 🙏 Acknowledgments
 

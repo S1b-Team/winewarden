@@ -2,10 +2,11 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security issue, please contact the maintainer privately.
+If you discover a security issue, please contact the project maintainers privately through GitHub.
 
-- Email: security@winewarden.local (replace with a real address)
+- Open a private security advisory via GitHub
 - Do not open a public issue for vulnerabilities
+- Allow reasonable time for response before disclosure
 
 ## Scope
 
