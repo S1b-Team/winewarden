@@ -11,15 +11,11 @@ use time::OffsetDateTime;
 
 use winewarden_core::ipc::{WineWardenRequest, WineWardenResponse, RunResult, StatusPayload};
 
-use crate::store::EventStore;
-
 pub struct DaemonState {
     pub started_at: OffsetDateTime,
     pub active_sessions: u32,
     pub last_session_id: Option<uuid::Uuid>,
     pub last_summary: Option<String>,
-    #[allow(dead_code)]
-    pub store: EventStore,
 }
 
 pub fn serve(

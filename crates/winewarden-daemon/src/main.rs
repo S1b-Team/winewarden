@@ -17,11 +17,8 @@ use reporting::SessionReport;
 use runner::{Runner, RunnerRequest};
 
 mod ipc;
-mod scheduler;
-mod store;
 
 use ipc::DaemonState;
-use store::EventStore;
 
 fn main() -> Result<()> {
     let socket_path = resolve_socket_path();
@@ -31,7 +28,6 @@ fn main() -> Result<()> {
         active_sessions: 0,
         last_session_id: None,
         last_summary: None,
-        store: EventStore { location: socket_path.display().to_string() },
     }));
 
     write_pid_file(&pid_path)?;
