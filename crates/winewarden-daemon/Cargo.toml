@@ -21,4 +21,3 @@ policy-engine = { path = "../policy-engine" }
 prefix-manager = { path = "../prefix-manager" }
 reporting = { path = "../reporting" }
 runner = { path = "../runner" }
-net-compat = { path = "../net-compat" }
