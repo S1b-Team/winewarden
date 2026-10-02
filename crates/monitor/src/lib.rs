@@ -29,7 +29,6 @@ pub mod path_redirect;
 pub mod proc_watch;
 pub mod sandbox;
 pub mod seccomp_handler;
-pub mod signals;
 pub mod syscalls;
 
 pub trait EventSource {

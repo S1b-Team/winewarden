@@ -16,16 +16,6 @@ pub struct TrustSignal {
     pub message: String,
 }
 
-impl TrustTier {
-    pub fn calm_label(&self) -> &'static str {
-        match self {
-            TrustTier::Green => "trusted",
-            TrustTier::Yellow => "partial",
-            TrustTier::Red => "restricted",
-        }
-    }
-}
-
 impl TrustSignal {
     pub fn from_tier(tier: TrustTier) -> Self {
         let message = match tier {

@@ -54,8 +54,6 @@ const SYS_OPENAT2: i32 = 437;
 const SYS_STAT: i32 = 4;
 const SYS_LSTAT: i32 = 6;
 const SYS_FSTATAT: i32 = 262;
-#[allow(dead_code)]
-const _SYS_NEWFSTATAT: i32 = 262; // Same as fstatat on x86_64
 const SYS_ACCESS: i32 = 21;
 const SYS_FACCESSAT: i32 = 269;
 const SYS_FACCESSAT2: i32 = 439;
@@ -73,14 +71,12 @@ const MAX_PATH_LEN: usize = 4096;
 pub struct HandlerContext {
     /// Path mapper for redirect/virtualize operations
     pub mapper: PathMapper,
-    /// Base data directory for creating virtual paths
-    pub data_dir: std::path::PathBuf,
 }
 
 impl HandlerContext {
     pub fn new(data_dir: std::path::PathBuf) -> Result<Self> {
         let mapper = PathMapper::from_env_or_default(&data_dir)?;
-        Ok(Self { mapper, data_dir })
+        Ok(Self { mapper })
     }
 }
 
