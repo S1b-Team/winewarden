@@ -46,6 +46,9 @@ nix::ioctl_readwrite!(seccomp_notif_send, b'!', 1, SeccompNotifResp);
 // Syscall numbers (x86_64)
 const SYS_CONNECT: i32 = 42;
 const SYS_BIND: i32 = 49;
+// Process spawn syscalls
+const SYS_EXECVE: i32 = 59;
+const SYS_EXECVEAT: i32 = 322;
 
 // Filesystem syscalls
 const SYS_OPEN: i32 = 2;
@@ -103,6 +106,10 @@ pub fn handle_notification(
     if syscall == SYS_CONNECT || syscall == SYS_BIND {
         event_data = handle_network_syscall(&req, policy, context, &mut decision_action)?;
     }
+    // Handle process spawn syscalls (execve/execveat) via process policy
+    else if syscall == SYS_EXECVE || syscall == SYS_EXECVEAT {
+        event_data = handle_process_syscall(&req, syscall, policy, context, &mut decision_action)?;
+    }
     // Handle filesystem syscalls
     else if is_filesystem_syscall(syscall) {
         event_data = handle_filesystem_syscall(
@@ -149,6 +156,46 @@ pub fn handle_notification(
     }
 
     Ok(event_data)
+}
+
+/// Handles execve/execveat by evaluating the process spawn policy.
+fn handle_process_syscall(
+    req: &SeccompNotif,
+    syscall: i32,
+    policy: &PolicyEngine,
+    context: &PolicyContext,
+    decision_action: &mut DecisionAction,
+) -> Result<Option<(AccessAttempt, PolicyDecision)>> {
+    let pid = req.pid as i32;
+    // execve(filename, argv, envp): args[0] = filename
+    // execveat(dirfd, pathname, argv, envp, flags): args[1] = pathname
+    let path_ptr = if syscall == SYS_EXECVE {
+        req.data.args[0]
+    } else {
+        req.data.args[1]
+    };
+    let path = match read_null_terminated_string(pid, path_ptr, MAX_PATH_LEN) {
+        Ok(path) => path,
+        Err(e) => {
+            eprintln!("Failed to read exec path from process {}: {}", req.pid, e);
+            // Fail closed: unreadable exec path is denied
+            *decision_action = DecisionAction::Deny;
+            return Ok(None);
+        }
+    };
+    let process_name = std::path::Path::new(&path)
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or(path.clone());
+    let policy_decision = policy.evaluate_process_spawn(&process_name, context);
+    *decision_action = policy_decision.action.clone();
+    let attempt = AccessAttempt {
+        timestamp: OffsetDateTime::now_utc(),
+        kind: AccessKind::Execute,
+        target: AccessTarget::Path(std::path::PathBuf::from(&path)),
+        note: Some(format!("Process spawn: {}", process_name)),
+    };
+    Ok(Some((attempt, policy_decision)))
 }
 
 fn is_filesystem_syscall(syscall: i32) -> bool {

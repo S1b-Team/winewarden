@@ -17,6 +17,9 @@ pub fn install_seccomp_filter() -> Result<RawFd> {
 
     // Filesystem syscalls - for redirect/virtualize functionality
     // These are intercepted to implement path rewriting and copy-on-write
+    // Process spawn syscalls - for process policy enforcement
+    let process_syscalls = ["execve", "execveat"];
+
     let fs_syscalls = [
         "open",
         "openat",
@@ -32,7 +35,11 @@ pub fn install_seccomp_filter() -> Result<RawFd> {
         "mkdirat",
     ];
 
-    for syscall_name in network_syscalls.iter().chain(fs_syscalls.iter()) {
+    for syscall_name in network_syscalls
+        .iter()
+        .chain(fs_syscalls.iter())
+        .chain(process_syscalls.iter())
+    {
         let syscall = ScmpSyscall::from_name(syscall_name)
             .with_context(|| format!("Failed to resolve syscall {}", syscall_name))?;
 
