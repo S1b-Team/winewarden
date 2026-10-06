@@ -32,6 +32,13 @@ path = "${HOME}/.config"
 action = "redirect"
 redirect_to = "${DATA_DIR}/virtual/config"
 
+[process]
+allowed_patterns = ["wine*", "wineserver", "*.exe"]
+blocked_patterns = ["*nc*", "*netcat*", "*powershell*", "*cmd.exe*"]
+max_child_processes = 50
+allow_shell_execution = false
+allow_script_execution = false
+
 [network]
 mode = "observe"
 dns_awareness = true
