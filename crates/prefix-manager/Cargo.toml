@@ -12,4 +12,3 @@ time.workspace = true
 walkdir.workspace = true
 uuid.workspace = true
 winewarden-core = { path = "../winewarden-core" }
-reporting = { path = "../reporting" }

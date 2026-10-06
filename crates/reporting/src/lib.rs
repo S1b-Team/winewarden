@@ -6,11 +6,6 @@ use policy_engine::{DecisionAction, PolicyDecision};
 use winewarden_core::trust::{TrustSignal, TrustTier};
 use winewarden_core::types::{AccessAttempt, RunMetadata};
 
-pub mod human;
-pub mod json;
-pub mod redact;
-pub mod timeline;
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReportEvent {
     pub attempt: AccessAttempt,
