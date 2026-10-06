@@ -145,7 +145,7 @@ impl MountNamespace {
 /// Builder for mount namespace configuration.
 #[derive(Debug, Clone)]
 pub struct MountNamespaceBuilder {
-    mappings: Vec<(PathBuf, PathBuf)>,
+    pub mappings: Vec<(PathBuf, PathBuf)>,
     data_dir: PathBuf,
 }
 
