@@ -864,7 +864,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "serde",
- "serde_json",
  "time",
  "winewarden-core",
 ]
@@ -880,7 +879,6 @@ name = "prefix-manager"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "reporting",
  "serde",
  "serde_json",
  "time",
@@ -960,7 +958,6 @@ version = "0.1.0"
 dependencies = [
  "policy-engine",
  "serde",
- "serde_json",
  "time",
  "uuid",
  "winewarden-core",
@@ -972,8 +969,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "serde",
- "serde_json",
- "winewarden-core",
 ]
 
 [[package]]

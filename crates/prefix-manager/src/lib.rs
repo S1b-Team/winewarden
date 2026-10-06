@@ -8,13 +8,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 use walkdir::WalkDir;
 
-use reporting::ReportStats;
 use winewarden_core::config::ConfigPaths;
-pub mod layout;
-pub mod lint;
-pub mod quarantine;
-pub mod repair;
-pub mod snapshots;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrefixSnapshot {
@@ -254,18 +248,4 @@ fn has_executable_neighbor(path: &Path) -> Result<bool> {
         }
     }
     Ok(false)
-}
-
-pub fn summarize_findings(findings: &[HygieneFinding]) -> ReportStats {
-    let mut stats = ReportStats {
-        total_attempts: 0,
-        denied: 0,
-        redirected: 0,
-        virtualized: 0,
-        allowed: 0,
-        systemic_risks: 0,
-    };
-
-    stats.total_attempts = findings.len() as u32;
-    stats
 }
