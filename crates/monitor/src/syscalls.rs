@@ -73,14 +73,11 @@ pub fn recv_fd(socket: RawFd) -> Result<OwnedFd> {
         .context("Failed to receive FD from socket")?;
 
     for cmsg in msg.cmsgs()? {
-        match cmsg {
-            ControlMessageOwned::ScmRights(fds) => {
-                if let Some(&fd) = fds.first() {
-                    // Safety: We just received this FD from recvmsg, so we own it now.
-                    return Ok(unsafe { OwnedFd::from_raw_fd(fd) });
-                }
+        if let ControlMessageOwned::ScmRights(fds) = cmsg {
+            if let Some(&fd) = fds.first() {
+                // Safety: We just received this FD from recvmsg, so we own it now.
+                return Ok(unsafe { OwnedFd::from_raw_fd(fd) });
             }
-            _ => {}
         }
     }
 

@@ -1,12 +1,15 @@
+use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::os::unix::fs::PermissionsExt;
 
 use anyhow::{Context, Result};
 use time::OffsetDateTime;
 
 use winewarden_core::config::{Config, ConfigPaths};
-use winewarden_core::ipc::{WineWardenRequest, WineWardenResponse, RunRequestPayload, RunResult, StatusPayload, resolve_pid_path, resolve_socket_path};
+use winewarden_core::ipc::{
+    resolve_pid_path, resolve_socket_path, RunRequestPayload, RunResult, StatusPayload,
+    WineWardenRequest, WineWardenResponse,
+};
 use winewarden_core::store::{ExecutableIdentity, TrustStore};
 use winewarden_core::trust::TrustTier;
 
@@ -36,7 +39,10 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn handle_request(request: WineWardenRequest, state: &Arc<Mutex<DaemonState>>) -> Result<WineWardenResponse> {
+fn handle_request(
+    request: WineWardenRequest,
+    state: &Arc<Mutex<DaemonState>>,
+) -> Result<WineWardenResponse> {
     match request {
         WineWardenRequest::Ping => Ok(WineWardenResponse::Pong),
         WineWardenRequest::Status => Ok(WineWardenResponse::Status(build_status(state))),
@@ -45,7 +51,9 @@ fn handle_request(request: WineWardenRequest, state: &Arc<Mutex<DaemonState>>) -
 }
 
 fn build_status(state: &Arc<Mutex<DaemonState>>) -> StatusPayload {
-    let guard = state.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let guard = state
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let uptime = OffsetDateTime::now_utc() - guard.started_at;
     StatusPayload {
         started_at: guard.started_at,
@@ -56,7 +64,10 @@ fn build_status(state: &Arc<Mutex<DaemonState>>) -> StatusPayload {
     }
 }
 
-fn handle_run(payload: RunRequestPayload, state: &Arc<Mutex<DaemonState>>) -> Result<WineWardenResponse> {
+fn handle_run(
+    payload: RunRequestPayload,
+    state: &Arc<Mutex<DaemonState>>,
+) -> Result<WineWardenResponse> {
     let report = execute_run(payload)?;
     let summary = report.human_summary();
     let result = RunResult {
@@ -64,7 +75,9 @@ fn handle_run(payload: RunRequestPayload, state: &Arc<Mutex<DaemonState>>) -> Re
         summary,
     };
 
-    let mut guard = state.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut guard = state
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     guard.active_sessions = guard.active_sessions.saturating_add(1);
     guard.last_session_id = Some(result.session_id);
     guard.last_summary = Some(result.summary.clone());
@@ -78,7 +91,8 @@ fn execute_run(payload: RunRequestPayload) -> Result<SessionReport> {
 
     let mut trust_store = TrustStore::load(&paths.trust_db_path)?;
     let identity = ExecutableIdentity::from_path(&payload.executable)?;
-    let base_tier = payload.trust_override
+    let base_tier = payload
+        .trust_override
         .or_else(|| trust_store.get_tier(&identity))
         .unwrap_or(config.trust.default_tier);
 
@@ -87,9 +101,13 @@ fn execute_run(payload: RunRequestPayload) -> Result<SessionReport> {
         trust_tier = downgrade_tier(trust_tier);
     }
 
-    let prefix_root = payload.prefix_root.unwrap_or_else(|| default_prefix_path(&paths, trust_tier));
+    let prefix_root = payload
+        .prefix_root
+        .unwrap_or_else(|| default_prefix_path(&paths, trust_tier));
 
-    if config.prefix.snapshot_before_first_run && !trust_store.records.contains_key(&identity.sha256) {
+    if config.prefix.snapshot_before_first_run
+        && !trust_store.records.contains_key(&identity.sha256)
+    {
         let manager = PrefixManager::new(prefix_root.clone(), &paths);
         let _snapshot = manager.create_snapshot()?;
     }

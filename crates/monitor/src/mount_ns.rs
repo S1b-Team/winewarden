@@ -44,8 +44,8 @@ impl MountNamespace {
         // Step 2: Make all mounts private to prevent propagation
         // This ensures our bind mounts don't affect the host
         mount(
-            Some(CStr::from_bytes_with_nul(b"none\0").unwrap()),
-            CStr::from_bytes_with_nul(b"/\0").unwrap(),
+            Some(c"none"),
+            c"/",
             None::<&CStr>,
             MsFlags::MS_REC | MsFlags::MS_PRIVATE,
             None::<&CStr>,

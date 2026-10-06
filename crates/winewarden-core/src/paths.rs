@@ -47,7 +47,14 @@ pub fn expand_path_template(template: &str, paths: &ConfigPaths) -> Result<PathB
     let replaced = template
         .replace("${HOME}", &home_dir)
         .replace("${DATA_DIR}", &paths.data_dir.to_string_lossy())
-        .replace("${CONFIG_DIR}", &paths.config_path.parent().unwrap_or(&paths.data_dir).to_string_lossy());
+        .replace(
+            "${CONFIG_DIR}",
+            &paths
+                .config_path
+                .parent()
+                .unwrap_or(&paths.data_dir)
+                .to_string_lossy(),
+        );
     let path = PathBuf::from(replaced);
     Ok(path)
 }

@@ -30,8 +30,8 @@ pub struct TrustStore {
 
 impl ExecutableIdentity {
     pub fn from_path(path: &Path) -> Result<Self> {
-        let bytes = fs::read(path)
-            .with_context(|| format!("read executable {}", path.display()))?;
+        let bytes =
+            fs::read(path).with_context(|| format!("read executable {}", path.display()))?;
         let mut hasher = Sha256::new();
         hasher.update(&bytes);
         let hash = hasher.finalize();
@@ -67,12 +67,15 @@ impl TrustStore {
 
     pub fn record_run(&mut self, identity: ExecutableIdentity, tier: TrustTier) {
         let now = OffsetDateTime::now_utc();
-        let entry = self.records.entry(identity.sha256.clone()).or_insert(TrustRecord {
-            identity: identity.clone(),
-            tier,
-            runs: 0,
-            last_seen: now,
-        });
+        let entry = self
+            .records
+            .entry(identity.sha256.clone())
+            .or_insert(TrustRecord {
+                identity: identity.clone(),
+                tier,
+                runs: 0,
+                last_seen: now,
+            });
         entry.runs = entry.runs.saturating_add(1);
         entry.last_seen = now;
         entry.tier = tier;
@@ -85,12 +88,15 @@ impl TrustStore {
 
     pub fn set_tier(&mut self, identity: ExecutableIdentity, tier: TrustTier) {
         let now = OffsetDateTime::now_utc();
-        let entry = self.records.entry(identity.sha256.clone()).or_insert(TrustRecord {
-            identity: identity.clone(),
-            tier,
-            runs: 0,
-            last_seen: now,
-        });
+        let entry = self
+            .records
+            .entry(identity.sha256.clone())
+            .or_insert(TrustRecord {
+                identity: identity.clone(),
+                tier,
+                runs: 0,
+                last_seen: now,
+            });
         entry.tier = tier;
         entry.identity.path = identity.path;
         entry.last_seen = now;

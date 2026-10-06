@@ -2,14 +2,14 @@ use serde::{Deserialize, Serialize};
 use time::Duration;
 use uuid::Uuid;
 
+use policy_engine::{DecisionAction, PolicyDecision};
 use winewarden_core::trust::{TrustSignal, TrustTier};
 use winewarden_core::types::{AccessAttempt, RunMetadata};
-use policy_engine::{DecisionAction, PolicyDecision};
 
 pub mod human;
 pub mod json;
-pub mod timeline;
 pub mod redact;
+pub mod timeline;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReportEvent {
@@ -55,7 +55,10 @@ impl SessionReport {
     }
 
     pub fn human_summary(&self) -> String {
-        let duration = self.duration().map(|d| format_duration(d)).unwrap_or_else(|| "unknown".to_string());
+        let duration = self
+            .duration()
+            .map(format_duration)
+            .unwrap_or_else(|| "unknown".to_string());
         let dangerous = self.stats.denied + self.stats.redirected + self.stats.virtualized;
         let safe_line = if dangerous == 0 {
             "No dangerous access attempts succeeded.".to_string()
@@ -89,8 +92,12 @@ impl ReportStats {
             match event.decision.action {
                 DecisionAction::Allow => stats.allowed = stats.allowed.saturating_add(1),
                 DecisionAction::Deny => stats.denied = stats.denied.saturating_add(1),
-                DecisionAction::Redirect(_) => stats.redirected = stats.redirected.saturating_add(1),
-                DecisionAction::Virtualize(_) => stats.virtualized = stats.virtualized.saturating_add(1),
+                DecisionAction::Redirect(_) => {
+                    stats.redirected = stats.redirected.saturating_add(1)
+                }
+                DecisionAction::Virtualize(_) => {
+                    stats.virtualized = stats.virtualized.saturating_add(1)
+                }
             }
         }
 

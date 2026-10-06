@@ -1,6 +1,6 @@
 use std::io::{BufRead, BufReader, BufWriter, Write};
-use std::path::{Path, PathBuf};
 use std::os::unix::net::UnixStream;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -63,14 +63,18 @@ pub enum WineWardenResponse {
 
 pub fn default_socket_path() -> PathBuf {
     if let Ok(runtime) = std::env::var("XDG_RUNTIME_DIR") {
-        return PathBuf::from(runtime).join("winewarden").join("winewarden.sock");
+        return PathBuf::from(runtime)
+            .join("winewarden")
+            .join("winewarden.sock");
     }
     PathBuf::from("/tmp").join("winewarden.sock")
 }
 
 pub fn default_pid_path() -> PathBuf {
     if let Ok(runtime) = std::env::var("XDG_RUNTIME_DIR") {
-        return PathBuf::from(runtime).join("winewarden").join("winewarden.pid");
+        return PathBuf::from(runtime)
+            .join("winewarden")
+            .join("winewarden.pid");
     }
     PathBuf::from("/tmp").join("winewarden.pid")
 }
