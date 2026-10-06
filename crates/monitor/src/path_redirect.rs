@@ -100,8 +100,12 @@ impl PathMapper {
     /// Maps an original path to its redirected/virtualized destination.
     /// Returns None if no mapping applies.
     pub fn map_path(&self, original: &Path) -> Option<PathBuf> {
+        // Lexical normalization (explicit no-follow symlink policy) so `..`
+        // and `.` components cannot dodge or accidentally hit a mapping.
+        let original = winewarden_core::paths::lexical_absolute(original);
         for (source, dest) in &self.mappings {
-            if let Ok(relative) = original.strip_prefix(source) {
+            let source = winewarden_core::paths::lexical_absolute(source);
+            if let Ok(relative) = original.strip_prefix(&source) {
                 return Some(dest.join(relative));
             }
         }
@@ -364,6 +368,50 @@ mod tests {
 
         assert!(nested.exists());
         assert!(nested.is_dir());
+    }
+
+    #[test]
+    fn test_map_path_normalizes_dot_dot() {
+        let mapper = PathMapper::with_mappings(vec![(
+            PathBuf::from("/home/user"),
+            PathBuf::from("/virtual/home"),
+        )]);
+        // `..` inside the candidate must not dodge the mapping
+        let mapped = mapper.map_path(Path::new("/home/user/docs/../notes.txt"));
+        assert_eq!(mapped, Some(PathBuf::from("/virtual/home/notes.txt")));
+        // `..` escaping the source prefix must not map
+        let mapped = mapper.map_path(Path::new("/home/other/../user/x.txt"));
+        assert_eq!(mapped, Some(PathBuf::from("/virtual/home/x.txt")));
+        let mapped = mapper.map_path(Path::new("/etc/../home/user/y.txt"));
+        assert_eq!(mapped, Some(PathBuf::from("/virtual/home/y.txt")));
+        // Truly outside the prefix stays unmapped
+        let mapped = mapper.map_path(Path::new("/opt/data/file.txt"));
+        assert_eq!(mapped, None);
+    }
+
+    #[test]
+    fn test_map_path_no_follow_symlink_policy() {
+        let temp = TempDir::new().unwrap();
+        let real = temp.path().join("real");
+        std::fs::create_dir_all(&real).unwrap();
+        let link = temp.path().join("linked");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        let mapper =
+            PathMapper::with_mappings(vec![(real.clone(), PathBuf::from("/virtual/real"))]);
+        // Policy: symlinks are NOT resolved; the lexical path via the symlink
+        // does not match the real-dir mapping.
+        let mapped = mapper.map_path(&link);
+        assert_eq!(mapped, None);
+    }
+
+    #[test]
+    fn test_map_path_dot_components() {
+        let mapper = PathMapper::with_mappings(vec![(
+            PathBuf::from("/tmp/cache"),
+            PathBuf::from("/virtual/tmp"),
+        )]);
+        let mapped = mapper.map_path(Path::new("/tmp/./cache/./item.bin"));
+        assert_eq!(mapped, Some(PathBuf::from("/virtual/tmp/item.bin")));
     }
 
     #[test]
