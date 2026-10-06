@@ -314,20 +314,7 @@ fn read_path_argument(req: &SeccompNotif, syscall: i32) -> Option<Result<String>
             let dirfd = req.data.args[0] as i32;
             let path_ptr = req.data.args[1];
 
-            // If dirfd is AT_FDCWD (-100), path is relative to cwd
-            // Otherwise we'd need to resolve the fd to a path (complex)
-            // For now, just handle absolute paths and AT_FDCWD
-            const AT_FDCWD: i32 = -100;
-            if dirfd == AT_FDCWD {
-                Some(read_null_terminated_string(pid, path_ptr, MAX_PATH_LEN))
-            } else {
-                // Relative path with specific dirfd - skip for now
-                eprintln!(
-                    "Warning: Relative path with dirfd {} not yet supported",
-                    dirfd
-                );
-                None
-            }
+            Some(read_dirfd_path(pid, dirfd, path_ptr))
         }
 
         // fstatat(dirfd, pathname, statbuf, flags)
@@ -336,23 +323,15 @@ fn read_path_argument(req: &SeccompNotif, syscall: i32) -> Option<Result<String>
             let dirfd = req.data.args[0] as i32;
             let path_ptr = req.data.args[1];
 
-            const AT_FDCWD: i32 = -100;
-            if dirfd == AT_FDCWD {
-                Some(read_null_terminated_string(pid, path_ptr, MAX_PATH_LEN))
-            } else {
-                eprintln!(
-                    "Warning: Relative path with dirfd {} not yet supported",
-                    dirfd
-                );
-                None
-            }
+            Some(read_dirfd_path(pid, dirfd, path_ptr))
         }
 
         // openat2(dirfd, pathname, open_how, size)
-        // More complex structure, skip for now
+        // args[0] = dirfd, args[1] = pathname
         SYS_OPENAT2 => {
-            eprintln!("Warning: openat2 not yet supported");
-            None
+            let dirfd = req.data.args[0] as i32;
+            let path_ptr = req.data.args[1];
+            Some(read_dirfd_path(pid, dirfd, path_ptr))
         }
 
         // faccessat2(dirfd, pathname, mode, flags)
@@ -360,22 +339,41 @@ fn read_path_argument(req: &SeccompNotif, syscall: i32) -> Option<Result<String>
             let dirfd = req.data.args[0] as i32;
             let path_ptr = req.data.args[1];
 
-            const AT_FDCWD: i32 = -100;
-            if dirfd == AT_FDCWD {
-                Some(read_null_terminated_string(pid, path_ptr, MAX_PATH_LEN))
-            } else {
-                eprintln!(
-                    "Warning: Relative path with dirfd {} not yet supported",
-                    dirfd
-                );
-                None
-            }
+            Some(read_dirfd_path(pid, dirfd, path_ptr))
         }
 
         _ => None,
     }
 }
 
+/// Resolves a dirfd-relative path to an absolute path via /proc/<pid>/fd/<dirfd>.
+/// Returns Ok(None) when dirfd is AT_FDCWD or the path is absolute.
+/// Returns Err when the dirfd cannot be resolved (fail closed).
+fn resolve_dirfd_path(pid: i32, dirfd: i32, path: &str) -> Result<Option<String>> {
+    const AT_FDCWD: i32 = -100;
+    if dirfd == AT_FDCWD || path.starts_with('/') {
+        return Ok(None);
+    }
+    let link = format!("/proc/{pid}/fd/{dirfd}");
+    let target = std::fs::read_link(&link)
+        .map_err(|e| anyhow::anyhow!("resolve dirfd {dirfd} of pid {pid}: {e}"))?;
+    let base = target.to_string_lossy();
+    let joined = if base.ends_with('/') {
+        format!("{base}{path}")
+    } else {
+        format!("{base}/{path}")
+    };
+    Ok(Some(joined))
+}
+
+/// Reads a path argument and resolves dirfd-relative paths (fail closed).
+fn read_dirfd_path(pid: i32, dirfd: i32, path_ptr: u64) -> Result<String> {
+    let path = read_null_terminated_string(pid, path_ptr, MAX_PATH_LEN)?;
+    match resolve_dirfd_path(pid, dirfd, &path)? {
+        Some(resolved) => Ok(resolved),
+        None => Ok(path),
+    }
+}
 /// Reads a null-terminated string from remote process memory
 fn read_null_terminated_string(pid: i32, addr: u64, max_len: usize) -> Result<String> {
     // Read in chunks to find the null terminator
@@ -442,5 +440,42 @@ fn parse_sockaddr(data: &[u8]) -> Option<NetworkTarget> {
             })
         }
         _ => None, // Unix sockets, etc.
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn at_fdcwd_and_absolute_paths_pass_through() {
+        let pid = std::process::id() as i32;
+        assert_eq!(resolve_dirfd_path(pid, -100, "relative.txt").unwrap(), None);
+        assert_eq!(
+            resolve_dirfd_path(pid, 3, "/absolute/path.txt").unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn unresolvable_dirfd_fails_closed() {
+        let pid = std::process::id() as i32;
+        let bogus = i32::MAX;
+        let result = resolve_dirfd_path(pid, bogus, "relative.txt");
+        assert!(result.is_err(), "expected error for unresolvable dirfd");
+    }
+
+    #[test]
+    fn dirfd_resolves_via_proc_fd() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = std::fs::File::open(dir.path()).unwrap();
+        use std::os::unix::io::AsRawFd;
+        let dirfd = file.as_raw_fd();
+        let pid = std::process::id() as i32;
+        let resolved = resolve_dirfd_path(pid, dirfd, "game.cfg")
+            .unwrap()
+            .expect("expected resolved path");
+        assert!(resolved.ends_with("game.cfg"), "{resolved}");
+        assert!(resolved.starts_with('/'), "{resolved}");
     }
 }
