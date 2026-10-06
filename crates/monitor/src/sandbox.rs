@@ -9,6 +9,7 @@ use landlock::{
 
 use crate::mount_ns::MountNamespaceBuilder;
 use winewarden_core::trust::TrustTier;
+use winewarden_core::ConfigPaths;
 
 /// Applies a complete sandbox (Landlock + Mount Namespace) to the current process.
 /// This MUST be called before executing the untrusted code (e.g. in pre_exec).
@@ -26,7 +27,10 @@ pub fn apply_sandbox(prefix_root: &Path, tier: TrustTier) -> Result<()> {
 /// Sets up the mount namespace for path virtualization.
 fn setup_mount_namespace(_prefix_root: &Path) -> Result<()> {
     // Create mount namespace with default mappings
-    let data_dir = Path::new("/tmp/winewarden");
+    // Root virtual mounts at the user's XDG data dir instead of a
+    // world-readable /tmp tree shared across sessions.
+    let paths = ConfigPaths::resolve()?;
+    let data_dir = paths.data_dir.join("virtual-mounts");
     let builder = MountNamespaceBuilder::new(data_dir.to_path_buf()).with_default_mappings()?;
 
     let mount_ns = builder.build();
@@ -172,5 +176,26 @@ fn add_rule(ruleset: &mut RulesetCreated, path: &Path, access: BitFlags<AccessFs
         }
 
         Err(e) => Err(anyhow::anyhow!("Landlock error: {:?}", e)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mount_ns::MountNamespaceBuilder;
+
+    #[test]
+    fn mount_virtualization_base_is_xdg_data_dir() {
+        let paths = ConfigPaths::resolve().unwrap();
+        let base = paths.data_dir.join("virtual-mounts");
+        let builder = MountNamespaceBuilder::new(base.clone())
+            .with_default_mappings()
+            .unwrap();
+        for (source, dest) in &builder.mappings {
+            assert!(
+                dest.starts_with(&base),
+                "mapping {source:?} -> {dest:?} escapes virtualization base"
+            );
+        }
     }
 }
