@@ -33,11 +33,11 @@ pub fn execute(action: DaemonAction) -> Result<()> {
         DaemonAction::Ping { socket } => ping(socket),
         DaemonAction::Status { socket } => status(socket),
         DaemonAction::SocketPath => {
-            println!("{}", resolve_socket_path().display());
+            println!("{}", resolve_socket_path()?.display());
             Ok(())
         }
         DaemonAction::PidPath => {
-            println!("{}", resolve_pid_path().display());
+            println!("{}", resolve_pid_path()?.display());
             Ok(())
         }
     }
@@ -57,7 +57,7 @@ fn start_daemon(socket: Option<PathBuf>, pid: Option<PathBuf>) -> Result<()> {
 }
 
 fn stop_daemon(pid_override: Option<PathBuf>) -> Result<()> {
-    let pid_path = pid_override.unwrap_or_else(resolve_pid_path);
+    let pid_path = pid_override.map_or_else(resolve_pid_path, Ok)?;
     let pid_text = std::fs::read_to_string(&pid_path)
         .with_context(|| format!("read pid file {}", pid_path.display()))?;
     let pid: i32 = pid_text.trim().parse().context("parse pid")?;
@@ -70,7 +70,7 @@ fn stop_daemon(pid_override: Option<PathBuf>) -> Result<()> {
 }
 
 fn ping(socket_override: Option<PathBuf>) -> Result<()> {
-    let socket = socket_override.unwrap_or_else(resolve_socket_path);
+    let socket = socket_override.map_or_else(resolve_socket_path, Ok)?;
     let response = send_request(&socket, &WineWardenRequest::Ping)?;
     match response {
         WineWardenResponse::Pong => {
@@ -83,7 +83,7 @@ fn ping(socket_override: Option<PathBuf>) -> Result<()> {
 }
 
 fn status(socket_override: Option<PathBuf>) -> Result<()> {
-    let socket = socket_override.unwrap_or_else(resolve_socket_path);
+    let socket = socket_override.map_or_else(resolve_socket_path, Ok)?;
     let response = send_request(&socket, &WineWardenRequest::Status)?;
     match response {
         WineWardenResponse::Status(payload) => {

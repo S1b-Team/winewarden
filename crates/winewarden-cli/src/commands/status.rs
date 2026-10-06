@@ -29,7 +29,7 @@ pub fn execute(executable: Option<PathBuf>, use_daemon: bool) -> Result<()> {
 }
 
 fn status_via_daemon() -> Result<()> {
-    let socket_path = resolve_socket_path();
+    let socket_path = resolve_socket_path()?;
     let response = send_request(&socket_path, &WineWardenRequest::Status)?;
     match response {
         WineWardenResponse::Status(payload) => {

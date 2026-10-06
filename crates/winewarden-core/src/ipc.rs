@@ -61,34 +61,42 @@ pub enum WineWardenResponse {
     Error(ErrorPayload),
 }
 
-pub fn default_socket_path() -> PathBuf {
-    if let Ok(runtime) = std::env::var("XDG_RUNTIME_DIR") {
-        return PathBuf::from(runtime)
-            .join("winewarden")
-            .join("winewarden.sock");
+fn runtime_dir() -> Result<PathBuf> {
+    let runtime = std::env::var("XDG_RUNTIME_DIR").context(
+        "XDG_RUNTIME_DIR is not set; refusing to use /tmp for the daemon socket. \
+         Set XDG_RUNTIME_DIR (or WINEWARDEN_SOCKET/WINEWARDEN_PID) explicitly.",
+    )?;
+    if runtime.trim().is_empty() {
+        anyhow::bail!(
+            "XDG_RUNTIME_DIR is empty; refusing to use /tmp for the daemon socket. \
+             Set XDG_RUNTIME_DIR (or WINEWARDEN_SOCKET/WINEWARDEN_PID) explicitly."
+        );
     }
-    PathBuf::from("/tmp").join("winewarden.sock")
+    Ok(PathBuf::from(runtime))
 }
 
-pub fn default_pid_path() -> PathBuf {
-    if let Ok(runtime) = std::env::var("XDG_RUNTIME_DIR") {
-        return PathBuf::from(runtime)
-            .join("winewarden")
-            .join("winewarden.pid");
-    }
-    PathBuf::from("/tmp").join("winewarden.pid")
+pub fn default_socket_path() -> Result<PathBuf> {
+    Ok(runtime_dir()?.join("winewarden").join("winewarden.sock"))
 }
 
-pub fn resolve_socket_path() -> PathBuf {
+pub fn default_pid_path() -> Result<PathBuf> {
+    Ok(runtime_dir()?.join("winewarden").join("winewarden.pid"))
+}
+
+pub fn resolve_socket_path() -> Result<PathBuf> {
     if let Ok(value) = std::env::var("WINEWARDEN_SOCKET") {
-        return PathBuf::from(value);
+        if !value.trim().is_empty() {
+            return Ok(PathBuf::from(value));
+        }
     }
     default_socket_path()
 }
 
-pub fn resolve_pid_path() -> PathBuf {
+pub fn resolve_pid_path() -> Result<PathBuf> {
     if let Ok(value) = std::env::var("WINEWARDEN_PID") {
-        return PathBuf::from(value);
+        if !value.trim().is_empty() {
+            return Ok(PathBuf::from(value));
+        }
     }
     default_pid_path()
 }
@@ -107,4 +115,61 @@ pub fn send_request(socket_path: &Path, request: &WineWardenRequest) -> Result<W
     reader.read_line(&mut line)?;
     let response = serde_json::from_str(&line).context("parse response")?;
     Ok(response)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    #[test]
+    fn missing_runtime_dir_fails_closed() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        std::env::remove_var("XDG_RUNTIME_DIR");
+        std::env::remove_var("WINEWARDEN_SOCKET");
+        std::env::remove_var("WINEWARDEN_PID");
+        let socket_err = default_socket_path().unwrap_err().to_string();
+        assert!(socket_err.contains("XDG_RUNTIME_DIR"), "{socket_err}");
+        let pid_err = default_pid_path().unwrap_err().to_string();
+        assert!(pid_err.contains("XDG_RUNTIME_DIR"), "{pid_err}");
+        assert!(resolve_socket_path().is_err());
+        assert!(resolve_pid_path().is_err());
+    }
+
+    #[test]
+    fn socket_override_bypasses_runtime_dir() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        std::env::remove_var("XDG_RUNTIME_DIR");
+        std::env::set_var("WINEWARDEN_SOCKET", "/custom/winewarden.sock");
+        std::env::set_var("WINEWARDEN_PID", "/custom/winewarden.pid");
+        assert_eq!(
+            resolve_socket_path().unwrap(),
+            PathBuf::from("/custom/winewarden.sock")
+        );
+        assert_eq!(
+            resolve_pid_path().unwrap(),
+            PathBuf::from("/custom/winewarden.pid")
+        );
+        std::env::remove_var("WINEWARDEN_SOCKET");
+        std::env::remove_var("WINEWARDEN_PID");
+    }
+
+    #[test]
+    fn runtime_dir_provides_paths() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        std::env::set_var("XDG_RUNTIME_DIR", "/run/user/1000");
+        std::env::remove_var("WINEWARDEN_SOCKET");
+        std::env::remove_var("WINEWARDEN_PID");
+        assert_eq!(
+            default_socket_path().unwrap(),
+            PathBuf::from("/run/user/1000/winewarden/winewarden.sock")
+        );
+        assert_eq!(
+            resolve_pid_path().unwrap(),
+            PathBuf::from("/run/user/1000/winewarden/winewarden.pid")
+        );
+        std::env::remove_var("XDG_RUNTIME_DIR");
+    }
 }

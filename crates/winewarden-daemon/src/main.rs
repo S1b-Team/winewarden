@@ -24,8 +24,8 @@ mod ipc;
 use ipc::DaemonState;
 
 fn main() -> Result<()> {
-    let socket_path = resolve_socket_path();
-    let pid_path = resolve_pid_path();
+    let socket_path = resolve_socket_path()?;
+    let pid_path = resolve_pid_path()?;
     let state = Arc::new(Mutex::new(DaemonState {
         started_at: OffsetDateTime::now_utc(),
         active_sessions: 0,
