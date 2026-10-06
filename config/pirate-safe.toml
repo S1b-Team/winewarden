@@ -10,6 +10,35 @@ pirate_safe = true
 auto_promote = false
 promotion_after_runs = 0
 
+[process]
+allowed_patterns = ["wine*", "wineserver", "*.exe"]
+blocked_patterns = ["*nc*", "*netcat*", "*powershell*", "*cmd.exe*"]
+max_child_processes = 50
+allow_shell_execution = false
+allow_script_execution = false
+
+[[sacred_zones]]
+label = "Home outside prefix"
+path = "${HOME}"
+action = "redirect"
+redirect_to = "${DATA_DIR}/virtual/home"
+
+[[sacred_zones]]
+label = "SSH keys"
+path = "${HOME}/.ssh"
+action = "deny"
+
+[[sacred_zones]]
+label = "GPG keys"
+path = "${HOME}/.gnupg"
+action = "deny"
+
+[[sacred_zones]]
+label = "User config"
+path = "${HOME}/.config"
+action = "redirect"
+redirect_to = "${DATA_DIR}/virtual/config"
+
 [network]
 mode = "observe"
 dns_awareness = true
