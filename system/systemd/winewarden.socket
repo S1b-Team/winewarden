@@ -3,6 +3,7 @@ Description=WineWarden Socket
 
 [Socket]
 ListenStream=%t/winewarden/winewarden.sock
+SocketMode=0600
 
 [Install]
 WantedBy=sockets.target
