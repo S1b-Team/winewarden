@@ -295,3 +295,43 @@ mod tests {
         assert!(matches!(decision.action, DecisionAction::Deny));
     }
 }
+
+#[cfg(test)]
+mod exec_wiring_tests {
+    use super::*;
+    use crate::PolicyContext;
+    use crate::PolicyEngine;
+    use winewarden_core::config::Config;
+    use winewarden_core::config::ConfigPaths;
+    use winewarden_core::trust::TrustTier;
+
+    #[test]
+    fn default_rules_deny_shell_like_process_spawn() {
+        let config = Config::default_config();
+        let paths = ConfigPaths::resolve().unwrap();
+        let engine = PolicyEngine::from_config(config, &paths).unwrap();
+        let ctx = PolicyContext {
+            prefix_root: std::path::PathBuf::from("/tmp/prefix"),
+            trust_tier: TrustTier::Yellow,
+        };
+        // "*nc*" is a default blocked pattern; the seccomp exec handler routes
+        // execve/execveat process names here, so this is the live deny path.
+        let decision = engine.evaluate_process_spawn("nc", &ctx);
+        assert!(matches!(decision.action, crate::DecisionAction::Deny));
+        let decision = engine.evaluate_process_spawn("powershell", &ctx);
+        assert!(matches!(decision.action, crate::DecisionAction::Deny));
+    }
+
+    #[test]
+    fn default_rules_allow_wine_process_spawn() {
+        let config = Config::default_config();
+        let paths = ConfigPaths::resolve().unwrap();
+        let engine = PolicyEngine::from_config(config, &paths).unwrap();
+        let ctx = PolicyContext {
+            prefix_root: std::path::PathBuf::from("/tmp/prefix"),
+            trust_tier: TrustTier::Yellow,
+        };
+        let decision = engine.evaluate_process_spawn("wine64", &ctx);
+        assert!(matches!(decision.action, crate::DecisionAction::Allow));
+    }
+}
