@@ -280,14 +280,14 @@ impl Monitor {
             cmd.pre_exec(move || {
                 // 1. Landlock
                 sandbox::apply_sandbox(&prefix, tier)
-                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+                    .map_err(|e| io::Error::other(e.to_string()))?;
 
                 // 2. Seccomp (Install filter and send FD)
                 let notify_fd = syscalls::install_seccomp_filter()
-                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+                    .map_err(|e| io::Error::other(e.to_string()))?;
 
                 syscalls::send_fd(tx.as_raw_fd(), notify_fd)
-                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+                    .map_err(|e| io::Error::other(e.to_string()))?;
 
                 // Close the notify FD in the child (parent has it now via socket, or will have it)
                 let _ = close(notify_fd);

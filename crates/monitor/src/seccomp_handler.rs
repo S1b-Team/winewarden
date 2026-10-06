@@ -207,11 +207,8 @@ fn handle_network_syscall(
 
                 let result = Some((attempt.clone(), policy_decision.clone()));
 
-                match policy_decision.action {
-                    DecisionAction::Deny => {
-                        *decision_action = DecisionAction::Deny;
-                    }
-                    _ => {} // Allow, Redirect (Treat as Allow for net for now), etc.
+                if let DecisionAction::Deny = policy_decision.action {
+                    *decision_action = DecisionAction::Deny;
                 }
 
                 return Ok(result);

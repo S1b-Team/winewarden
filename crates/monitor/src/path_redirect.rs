@@ -37,7 +37,7 @@ impl PathMapper {
     /// Sorts mappings by longest source prefix first for proper matching order.
     fn sort_mappings(&mut self) {
         self.mappings
-            .sort_by(|a, b| b.0.as_os_str().len().cmp(&a.0.as_os_str().len()));
+            .sort_by_key(|m| std::cmp::Reverse(m.0.as_os_str().len()));
     }
 
     /// Parses a mapping string like "${HOME}:/virtual/home,/tmp:/virtual/tmp"

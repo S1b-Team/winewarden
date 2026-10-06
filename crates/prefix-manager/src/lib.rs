@@ -8,13 +8,13 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 use walkdir::WalkDir;
 
-use winewarden_core::config::ConfigPaths;
 use reporting::ReportStats;
+use winewarden_core::config::ConfigPaths;
 pub mod layout;
-pub mod snapshots;
 pub mod lint;
 pub mod quarantine;
 pub mod repair;
+pub mod snapshots;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrefixSnapshot {
@@ -121,10 +121,7 @@ impl PrefixManager {
             let entry = entry?;
             if entry.file_type().is_file() {
                 let metadata = entry.metadata()?;
-                let modified_at = metadata
-                    .modified()
-                    .ok()
-                    .and_then(|time| OffsetDateTime::try_from(time).ok());
+                let modified_at = metadata.modified().ok().map(OffsetDateTime::from);
                 entries.push(SnapshotEntry {
                     path: entry.path().to_path_buf(),
                     size: metadata.len(),
@@ -202,7 +199,9 @@ impl PrefixManager {
                             .file_name()
                             .map(|value| value.to_string_lossy().to_string())
                             .unwrap_or_else(|| "unknown.dll".to_string());
-                        map.entry(name).or_default().push(entry.path().to_path_buf());
+                        map.entry(name)
+                            .or_default()
+                            .push(entry.path().to_path_buf());
                     }
                 }
             }

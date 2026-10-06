@@ -22,6 +22,12 @@ pub struct RunnerRequest {
 
 pub struct Runner;
 
+impl Default for Runner {
+    fn default() -> Self {
+        Self
+    }
+}
+
 impl Runner {
     pub fn new() -> Self {
         Self

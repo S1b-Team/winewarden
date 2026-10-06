@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 #[derive(Debug, Clone)]
 pub enum RunnerHint {
@@ -8,7 +8,7 @@ pub enum RunnerHint {
     Manual,
 }
 
-pub fn detect_hint(executable: &PathBuf) -> RunnerHint {
+pub fn detect_hint(executable: &Path) -> RunnerHint {
     let value = executable.to_string_lossy();
     if value.contains("steam") {
         RunnerHint::Steam

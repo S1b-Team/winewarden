@@ -1,4 +1,5 @@
 name: ci
+
 on:
   push:
     branches: [ main ]
@@ -11,5 +12,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - name: cargo fmt
+        run: cargo fmt --all -- --check
+      - name: cargo clippy
+        run: cargo clippy --workspace -- -D warnings
       - name: cargo check
         run: cargo check
+      - name: cargo test
+        run: cargo test --workspace

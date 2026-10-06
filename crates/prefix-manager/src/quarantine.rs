@@ -8,6 +8,9 @@ pub struct QuarantinePlan {
 
 impl QuarantinePlan {
     pub fn new(prefix_root: PathBuf, reason: String) -> Self {
-        Self { prefix_root, reason }
+        Self {
+            prefix_root,
+            reason,
+        }
     }
 }

@@ -129,17 +129,14 @@ impl PolicyEngine {
 
     /// Updates behavior profile based on an access attempt
     fn update_behavior_profile(&self, attempt: &AccessAttempt) {
-        match attempt.kind {
-            winewarden_core::types::AccessKind::Write => {
-                if let AccessTarget::Path(path) = &attempt.target {
-                    if let Some(path_str) = path.to_str() {
-                        self.behavior_profile
-                            .borrow_mut()
-                            .record_file_modification(path_str);
-                    }
+        if let winewarden_core::types::AccessKind::Write = attempt.kind {
+            if let AccessTarget::Path(path) = &attempt.target {
+                if let Some(path_str) = path.to_str() {
+                    self.behavior_profile
+                        .borrow_mut()
+                        .record_file_modification(path_str);
                 }
             }
-            _ => {}
         }
     }
 

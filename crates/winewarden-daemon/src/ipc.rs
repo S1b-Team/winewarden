@@ -1,15 +1,15 @@
 use std::fs;
 use std::io::{BufRead, BufReader, BufWriter, Write};
-use std::os::unix::net::{UnixListener, UnixStream};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::io::AsRawFd;
+use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result};
 use time::OffsetDateTime;
 
-use winewarden_core::ipc::{WineWardenRequest, WineWardenResponse, RunResult, StatusPayload};
+use winewarden_core::ipc::{RunResult, StatusPayload, WineWardenRequest, WineWardenResponse};
 
 pub struct DaemonState {
     pub started_at: OffsetDateTime,
@@ -21,7 +21,10 @@ pub struct DaemonState {
 pub fn serve(
     socket_path: &Path,
     state: Arc<Mutex<DaemonState>>,
-    handler: impl Fn(WineWardenRequest, &Arc<Mutex<DaemonState>>) -> Result<WineWardenResponse> + Send + Sync + 'static,
+    handler: impl Fn(WineWardenRequest, &Arc<Mutex<DaemonState>>) -> Result<WineWardenResponse>
+        + Send
+        + Sync
+        + 'static,
 ) -> Result<()> {
     if let Some(parent) = socket_path.parent() {
         fs::create_dir_all(parent)
@@ -73,7 +76,11 @@ fn handle_connection(
 
 fn check_peer_uid(stream: &UnixStream) -> Result<()> {
     let fd = stream.as_raw_fd();
-    let mut cred: libc::ucred = libc::ucred { pid: 0, uid: 0, gid: 0 };
+    let mut cred: libc::ucred = libc::ucred {
+        pid: 0,
+        uid: 0,
+        gid: 0,
+    };
     let mut len = std::mem::size_of::<libc::ucred>() as libc::socklen_t;
     let rc = unsafe {
         libc::getsockopt(
@@ -100,11 +107,19 @@ fn update_state(state: &Arc<Mutex<DaemonState>>, response: &WineWardenResponse) 
         Err(poisoned) => poisoned.into_inner(),
     };
     match response {
-        WineWardenResponse::RunResult(RunResult { session_id, summary }) => {
+        WineWardenResponse::RunResult(RunResult {
+            session_id,
+            summary,
+        }) => {
             state.last_session_id = Some(*session_id);
             state.last_summary = Some(summary.clone());
         }
-        WineWardenResponse::Status(StatusPayload { active_sessions, last_session_id, last_summary, .. }) => {
+        WineWardenResponse::Status(StatusPayload {
+            active_sessions,
+            last_session_id,
+            last_summary,
+            ..
+        }) => {
             state.active_sessions = *active_sessions;
             state.last_session_id = *last_session_id;
             state.last_summary = last_summary.clone();

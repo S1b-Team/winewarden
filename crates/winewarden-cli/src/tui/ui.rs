@@ -32,7 +32,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 
 /// Renders the header with tabs
 fn render_header(frame: &mut Frame, app: &App, area: Rect) {
-    let titles: Vec<Line> = vec![
+    let titles: Vec<Line> = [
         Screen::Dashboard,
         Screen::Trust,
         Screen::Network,
