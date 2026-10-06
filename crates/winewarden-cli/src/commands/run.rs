@@ -110,7 +110,7 @@ pub fn execute(inputs: RunInputs) -> Result<()> {
 }
 
 fn run_via_daemon(inputs: RunInputs) -> Result<()> {
-    let socket_path = resolve_socket_path();
+    let socket_path = resolve_socket_path()?;
     let payload = RunRequestPayload {
         executable: inputs.executable,
         args: inputs.args,
