@@ -131,19 +131,12 @@ pub fn handle_notification(
         resp.error = 1; // EPERM
     }
 
-    // Handle path redirection if needed
-    if let Some(new_path) = path_redirect {
-        // For now, we can't actually rewrite the path in the syscall argument
-        // without more complex ptrace integration or using SECCOMP_ADDFD
-        // This is a limitation of the current approach
-        // The process will get EPERM and need to retry, or we need to use
-        // a different approach (mount namespaces) for full redirection
-        eprintln!(
-            "Path redirect to {} requested but not fully implemented",
-            new_path.display()
-        );
-
-        // For now, allow but log - the actual redirection needs mount namespace
+    // A redirect/virtualize decision only reaches this point when the mount
+    // namespace covers the path (mapper produced a mapping). The mount NS is
+    // the authoritative redirect mechanism; the syscall continues and the
+    // bind mount remaps it to the virtual location. Without a mapping the
+    // decision was already downgraded to Deny (fail closed).
+    if path_redirect.is_some() && matches!(decision_action, DecisionAction::Allow) {
         resp.error = 0;
         resp.flags = 1; // SECCOMP_USER_NOTIF_FLAG_CONTINUE
     } else if matches!(decision_action, DecisionAction::Allow) {
@@ -265,25 +258,42 @@ fn handle_filesystem_syscall(
             *decision_action = DecisionAction::Deny;
         }
         DecisionAction::Redirect(_target) => {
-            // For redirect, we map the path and set the redirect output
-            // Note: Full path rewriting requires ptrace or mount namespace
-            // This logs the intent for now
-            if let Some(mapped) = handler_ctx.mapper.map_path(&path) {
-                *path_redirect = Some(mapped);
+            // The mount namespace is the only mechanism that actually remaps
+            // paths. If the mount map does not cover this path, the syscall
+            // would continue against the original host path: fail closed.
+            match handler_ctx.mapper.map_path(&path) {
+                Some(mapped) => {
+                    *path_redirect = Some(mapped);
+                    *decision_action = DecisionAction::Allow;
+                }
+                None => {
+                    eprintln!(
+                        "Redirect policy for {} has no mount mapping; denying",
+                        path.display()
+                    );
+                    *decision_action = DecisionAction::Deny;
+                }
             }
-            *decision_action = DecisionAction::Allow; // Allow for now with logging
         }
         DecisionAction::Virtualize(_target) => {
-            // For virtualize, we need to ensure the virtual path exists
-            // and potentially copy-on-write
-            if let Some(mapped) = handler_ctx.mapper.map_path(&path) {
-                // Try to create parent directories lazily
-                if let Some(parent) = mapped.parent() {
-                    let _ = CopyOnWrite::ensure_dir_exists(parent);
+            // Same fail-closed rule as Redirect: without a mount mapping the
+            // syscall would hit the original host path.
+            match handler_ctx.mapper.map_path(&path) {
+                Some(mapped) => {
+                    if let Some(parent) = mapped.parent() {
+                        let _ = CopyOnWrite::ensure_dir_exists(parent);
+                    }
+                    *path_redirect = Some(mapped);
+                    *decision_action = DecisionAction::Allow;
                 }
-                *path_redirect = Some(mapped);
+                None => {
+                    eprintln!(
+                        "Virtualize policy for {} has no mount mapping; denying",
+                        path.display()
+                    );
+                    *decision_action = DecisionAction::Deny;
+                }
             }
-            *decision_action = DecisionAction::Allow; // Allow for now with logging
         }
         DecisionAction::Allow => {
             *decision_action = DecisionAction::Allow;
