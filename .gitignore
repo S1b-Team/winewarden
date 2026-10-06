@@ -177,6 +177,7 @@ desktop.ini
 # TEMPORARY & LOCK FILES
 ############################
 *.lock
+!Cargo.lock
 Gemfile.lock
 package-lock.json
 yarn.lock

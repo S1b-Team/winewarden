@@ -1,8 +1,13 @@
 name: security-audit
+
 on:
   schedule:
     - cron: "0 6 * * 1"
   workflow_dispatch:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   audit:
