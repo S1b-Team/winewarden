@@ -38,8 +38,32 @@ impl SacredZone {
     }
 
     pub fn matches(&self, candidate: &Path) -> bool {
-        candidate.starts_with(&self.path)
+        lexical_absolute(candidate).starts_with(lexical_absolute(&self.path))
     }
+}
+
+/// Lexically normalizes a path: resolves `.` and `..` components without
+/// following symlinks (an explicit no-follow policy). Paths that do not
+/// exist on disk normalize identically to existing ones.
+pub fn lexical_absolute(path: &Path) -> PathBuf {
+    let mut components = Vec::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                components.pop();
+            }
+            other => components.push(other.as_os_str()),
+        }
+    }
+    let mut result = PathBuf::new();
+    if path.is_absolute() {
+        result.push(std::path::Component::RootDir.as_os_str());
+    }
+    for component in components {
+        result.push(component);
+    }
+    result
 }
 
 pub fn expand_path_template(template: &str, paths: &ConfigPaths) -> Result<PathBuf> {
@@ -57,4 +81,49 @@ pub fn expand_path_template(template: &str, paths: &ConfigPaths) -> Result<PathB
         );
     let path = PathBuf::from(replaced);
     Ok(path)
+}
+
+#[cfg(test)]
+mod canonicalization_tests {
+    use super::*;
+
+    fn zone(path: &str) -> SacredZone {
+        SacredZone {
+            label: "test".to_string(),
+            path: PathBuf::from(path),
+            action: PathAction::Deny,
+            redirect_to: None,
+        }
+    }
+
+    #[test]
+    fn zone_match_normalizes_dot_dot() {
+        let z = zone("/home/user/.ssh");
+        assert!(z.matches(Path::new("/home/user/docs/../.ssh/id_rsa")));
+        assert!(!z.matches(Path::new("/home/user/../other/.ssh/id_rsa")));
+    }
+
+    #[test]
+    fn zone_match_normalizes_dot_components() {
+        let z = zone("/etc/secrets");
+        assert!(z.matches(Path::new("/etc/./secrets/./key")));
+    }
+
+    #[test]
+    fn zone_match_ignores_trailing_separator() {
+        let z = zone("/home/user/.ssh/");
+        assert!(z.matches(Path::new("/home/user/.ssh/id_rsa")));
+    }
+
+    #[test]
+    fn lexical_absolute_resolves_relative_components() {
+        assert_eq!(
+            lexical_absolute(Path::new("/a/b/../c/./d")),
+            PathBuf::from("/a/c/d")
+        );
+        assert_eq!(
+            lexical_absolute(Path::new("/a/../../x")),
+            PathBuf::from("/x")
+        );
+    }
 }
