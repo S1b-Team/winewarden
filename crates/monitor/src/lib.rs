@@ -105,22 +105,15 @@ impl Monitor {
         let mut seccomp_fd: Option<OwnedFd> = None;
 
         if !request.no_run {
-            let (child, rx_fd) = self.spawn_process(
-                &request.executable,
-                &request.args,
-                &request.prefix_root,
-                request.trust_tier,
-            )?;
+            let (child, rx_fd) =
+                self.spawn_process(&request.executable, &request.args, &request.prefix_root)?;
             child_process = Some(child);
 
             if let Some(rx) = rx_fd {
                 // Try to receive the seccomp notify FD from the child
                 // We use the raw fd of rx to receive
                 match syscalls::recv_fd(rx.as_raw_fd()) {
-                    Ok(fd) => {
-                        // println!("Seccomp active. Notification FD: {}", fd.as_raw_fd());
-                        seccomp_fd = Some(fd);
-                    }
+                    Ok(fd) => seccomp_fd = Some(fd),
                     Err(e) => {
                         eprintln!("Warning: Failed to receive Seccomp FD: {}", e);
                     }
@@ -259,7 +252,6 @@ impl Monitor {
         executable: &Path,
         args: &[String],
         prefix: &Path,
-        tier: TrustTier,
     ) -> Result<(std::process::Child, Option<OwnedFd>)> {
         let mut cmd = Command::new(executable);
         cmd.args(args);
@@ -273,16 +265,13 @@ impl Monitor {
         )
         .context("socketpair failed")?;
 
-        // Apply Landlock sandbox
-        // We clone the path/tier because the closure needs to own them or move them
+        // `tx` moves into the pre_exec closure; the parent's copy closes when
+        // `cmd` is dropped at the end of this function.
         let prefix = prefix.to_path_buf();
         unsafe {
             cmd.pre_exec(move || {
-                // 1. Landlock
-                sandbox::apply_sandbox(&prefix, tier)
-                    .map_err(|e| io::Error::other(e.to_string()))?;
+                sandbox::apply_sandbox(&prefix).map_err(|e| io::Error::other(e.to_string()))?;
 
-                // 2. Seccomp (Install filter and send FD)
                 let notify_fd = syscalls::install_seccomp_filter()
                     .map_err(|e| io::Error::other(e.to_string()))?;
 
@@ -300,22 +289,6 @@ impl Monitor {
         let child = cmd
             .spawn()
             .with_context(|| format!("launch {}", executable.display()))?;
-
-        // tx drops and closes in parent (Wait, tx was moved to closure? No, only in closure scope)
-        // Actually, if we use `move ||`, `tx` is moved into closure. It is NOT available in parent anymore?
-        // Ah, `socketpair` returns objects. If I move `tx` into closure, parent doesn't have it.
-        // BUT, `pre_exec` runs in child.
-        // Wait, `Command::pre_exec` closure is run in the child process.
-        // But the closure definition happens in the parent.
-        // So `tx` is moved into the closure structure.
-        // Does the parent still own `tx`? No.
-        // So `tx` is dropped in the parent when the closure is dropped?
-        // `cmd` owns the closure. `cmd` is dropped after `spawn`? No, `spawn` consumes `&mut cmd`? No.
-        // `spawn` creates the child.
-        // IMPORTANT: We need to ensure `tx` is closed in the PARENT so the child sees EOF/closure if needed?
-        // Actually, `socketpair` creates FDs. If we move `tx` into closure, it's owned by the closure.
-        // When `cmd` is dropped (at end of `spawn_process`), the closure is dropped, and `tx` is closed in the parent process.
-        // This is correct. We don't need to manually close `tx` in parent.
 
         Ok((child, Some(rx)))
     }

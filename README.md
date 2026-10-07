@@ -33,7 +33,6 @@ calm by design · silent by default · strict by choice
 ### 🛡️ Filesystem Virtualization (Phase 1)
 - **Mount Namespace Isolation**: Creates private filesystem namespaces with bind-mount virtualization
 - **Path Mapping**: Prefix-based redirects (e.g., `${HOME}` → `${DATA_DIR}/virtual/home`)
-- **Copy-on-Write**: First-write semantics for efficient file virtualization
 - **Landlock Sandbox**: Kernel-level access control for defense-in-depth
 
 ### 🌐 Network Awareness (Phase 2)

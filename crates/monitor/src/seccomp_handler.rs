@@ -5,7 +5,7 @@ use std::os::unix::io::RawFd;
 use time::OffsetDateTime;
 
 use crate::memory;
-use crate::path_redirect::{CopyOnWrite, PathMapper};
+use crate::path_redirect::PathMapper;
 use policy_engine::{DecisionAction, PolicyContext, PolicyDecision, PolicyEngine};
 use winewarden_core::types::{AccessAttempt, AccessKind, AccessTarget, NetworkTarget};
 
@@ -100,7 +100,6 @@ pub fn handle_notification(
     let syscall = req.data.nr;
     let mut decision_action = DecisionAction::Allow;
     let mut event_data = None;
-    let mut path_redirect: Option<std::path::PathBuf> = None;
 
     // Handle network syscalls
     if syscall == SYS_CONNECT || syscall == SYS_BIND {
@@ -119,7 +118,6 @@ pub fn handle_notification(
             context,
             handler_ctx,
             &mut decision_action,
-            &mut path_redirect,
         )?;
     } else {
         eprintln!("Intercepted unexpected syscall nr: {}", syscall);
@@ -138,15 +136,10 @@ pub fn handle_notification(
         resp.error = 1; // EPERM
     }
 
-    // A redirect/virtualize decision only reaches this point when the mount
-    // namespace covers the path (mapper produced a mapping). The mount NS is
-    // the authoritative redirect mechanism; the syscall continues and the
-    // bind mount remaps it to the virtual location. Without a mapping the
-    // decision was already downgraded to Deny (fail closed).
-    if path_redirect.is_some() && matches!(decision_action, DecisionAction::Allow) {
-        resp.error = 0;
-        resp.flags = 1; // SECCOMP_USER_NOTIF_FLAG_CONTINUE
-    } else if matches!(decision_action, DecisionAction::Allow) {
+    // Redirect/virtualize decisions arrive here as Allow when the mount
+    // namespace covers the path, so the syscall continues and the bind mount
+    // remaps it; uncovered ones were already downgraded to Deny.
+    if matches!(decision_action, DecisionAction::Allow) {
         resp.flags = 1; // SECCOMP_USER_NOTIF_FLAG_CONTINUE
     }
 
@@ -269,7 +262,6 @@ fn handle_filesystem_syscall(
     context: &PolicyContext,
     handler_ctx: &mut HandlerContext,
     decision_action: &mut DecisionAction,
-    path_redirect: &mut Option<std::path::PathBuf>,
 ) -> Result<Option<(AccessAttempt, PolicyDecision)>> {
     // Read the path argument from process memory
     let path_result = read_path_argument(req, syscall);
@@ -308,18 +300,14 @@ fn handle_filesystem_syscall(
             // The mount namespace is the only mechanism that actually remaps
             // paths. If the mount map does not cover this path, the syscall
             // would continue against the original host path: fail closed.
-            match handler_ctx.mapper.map_path(&path) {
-                Some(mapped) => {
-                    *path_redirect = Some(mapped);
-                    *decision_action = DecisionAction::Allow;
-                }
-                None => {
-                    eprintln!(
-                        "Redirect policy for {} has no mount mapping; denying",
-                        path.display()
-                    );
-                    *decision_action = DecisionAction::Deny;
-                }
+            if handler_ctx.mapper.map_path(&path).is_some() {
+                *decision_action = DecisionAction::Allow;
+            } else {
+                eprintln!(
+                    "Redirect policy for {} has no mount mapping; denying",
+                    path.display()
+                );
+                *decision_action = DecisionAction::Deny;
             }
         }
         DecisionAction::Virtualize(_target) => {
@@ -328,9 +316,8 @@ fn handle_filesystem_syscall(
             match handler_ctx.mapper.map_path(&path) {
                 Some(mapped) => {
                     if let Some(parent) = mapped.parent() {
-                        let _ = CopyOnWrite::ensure_dir_exists(parent);
+                        let _ = std::fs::create_dir_all(parent);
                     }
-                    *path_redirect = Some(mapped);
                     *decision_action = DecisionAction::Allow;
                 }
                 None => {

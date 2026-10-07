@@ -7,40 +7,28 @@ use landlock::{
     RulesetCreatedAttr, RulesetError, ABI,
 };
 
-use crate::mount_ns::MountNamespaceBuilder;
-use winewarden_core::trust::TrustTier;
+use crate::mount_ns::MountNamespace;
+use crate::path_redirect::PathMapper;
 use winewarden_core::ConfigPaths;
 
 /// Applies a complete sandbox (Landlock + Mount Namespace) to the current process.
 /// This MUST be called before executing the untrusted code (e.g. in pre_exec).
-pub fn apply_sandbox(prefix_root: &Path, tier: TrustTier) -> Result<()> {
-    // Step 1: Set up mount namespace for path virtualization
-    // This creates bind mounts that redirect sensitive paths to virtual locations
-    setup_mount_namespace(prefix_root)?;
-
-    // Step 2: Apply Landlock sandbox for additional restrictions
-    apply_landlock_sandbox(prefix_root, tier)?;
-
+pub fn apply_sandbox(prefix_root: &Path) -> Result<()> {
+    setup_mount_namespace()?;
+    apply_landlock_sandbox(prefix_root)?;
     Ok(())
 }
 
-/// Sets up the mount namespace for path virtualization.
-fn setup_mount_namespace(_prefix_root: &Path) -> Result<()> {
-    // Create mount namespace with default mappings
-    // Root virtual mounts at the user's XDG data dir instead of a
-    // world-readable /tmp tree shared across sessions.
+/// Bind-mounts the redirect targets under the user's XDG data dir instead of a
+/// world-readable /tmp tree shared across sessions.
+fn setup_mount_namespace() -> Result<()> {
     let paths = ConfigPaths::resolve()?;
-    let data_dir = paths.data_dir.join("virtual-mounts");
-    let builder = MountNamespaceBuilder::new(data_dir.to_path_buf()).with_default_mappings()?;
-
-    let mount_ns = builder.build();
-    mount_ns.setup(_prefix_root)?;
-
-    Ok(())
+    let mapper = PathMapper::from_env_or_default(&paths.data_dir.join("virtual-mounts"))?;
+    MountNamespace::new(mapper).setup()
 }
 
 /// Applies Landlock sandbox for filesystem access control.
-fn apply_landlock_sandbox(prefix_root: &Path, tier: TrustTier) -> Result<()> {
+fn apply_landlock_sandbox(prefix_root: &Path) -> Result<()> {
     // Define access rights
     let read_dirs = AccessFs::Execute | AccessFs::ReadFile | AccessFs::ReadDir;
     let read_write_dirs = read_dirs
@@ -55,14 +43,10 @@ fn apply_landlock_sandbox(prefix_root: &Path, tier: TrustTier) -> Result<()> {
         | AccessFs::MakeBlock
         | AccessFs::MakeSym;
 
-    // Build the ruleset
-    let ruleset = Ruleset::default()
+    let mut ruleset = Ruleset::default()
         .handle_access(AccessFs::from_all(ABI::V1))?
         .create()
         .map_err(|e| anyhow::anyhow!("Failed to create Landlock ruleset: {}", e))?;
-
-    // We need a mutable ruleset to add rules
-    let mut ruleset = ruleset;
 
     // 1. System Basic Access (Read-Only)
     // Necessary for Wine binary, libraries, etc.
@@ -121,60 +105,23 @@ fn apply_landlock_sandbox(prefix_root: &Path, tier: TrustTier) -> Result<()> {
         add_rule(&mut ruleset, prefix_root, read_write_dirs)?;
     }
 
-    // 5. Special handling based on TrustTier
-    match tier {
-        TrustTier::Red => {
-            // Strictly confined. The defaults above are already quite "Red"
-            // (no access to home/Documents etc).
-        }
-        TrustTier::Yellow => {
-            // Yellow might allow some extra integrations if defined?
-            // For now, keep it same as Red for safety.
-        }
-        TrustTier::Green => {
-            // Green might allow access to specific "My Documents" if configured?
-            // But even green games shouldn't read .ssh.
-            // Keeping the safe defaults is better.
-        }
-    }
-
-    // Apply the ruleset
-    let status = ruleset
+    ruleset
         .restrict_self()
         .map_err(|e| anyhow::anyhow!("Failed to enforce Landlock ruleset: {}", e))?;
-
-    if status.ruleset == landlock::RulesetStatus::FullyEnforced {
-        // Success
-    } else {
-        // Partially enforced (maybe some fs features missing?)
-        // Proceeding, but noting could be useful.
-    }
 
     Ok(())
 }
 
 fn add_rule(ruleset: &mut RulesetCreated, path: &Path, access: BitFlags<AccessFs>) -> Result<()> {
-    // Landlock requires an open file descriptor.
-
-    let file = match File::open(path) {
-        Ok(f) => f,
-
-        Err(_) => return Ok(()), // If we can't open it, we can't allow it. Skip.
+    // Landlock needs an open fd; a path we cannot open is simply not allowed.
+    let Ok(file) = File::open(path) else {
+        return Ok(());
     };
 
     match ruleset.add_rule(PathBeneath::new(&file, access)) {
         Ok(_) => Ok(()),
-
-        Err(RulesetError::AddRules(_e)) => {
-            // Log warning?
-
-            // "Failed to add rule for path: {:?} - {}", path, e
-
-            // For now, ignore minor errors to avoid crashing start.
-
-            Ok(())
-        }
-
+        // Skip rules the running kernel rejects rather than failing startup.
+        Err(RulesetError::AddRules(_)) => Ok(()),
         Err(e) => Err(anyhow::anyhow!("Landlock error: {:?}", e)),
     }
 }
@@ -182,16 +129,13 @@ fn add_rule(ruleset: &mut RulesetCreated, path: &Path, access: BitFlags<AccessFs
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mount_ns::MountNamespaceBuilder;
 
     #[test]
     fn mount_virtualization_base_is_xdg_data_dir() {
         let paths = ConfigPaths::resolve().unwrap();
         let base = paths.data_dir.join("virtual-mounts");
-        let builder = MountNamespaceBuilder::new(base.clone())
-            .with_default_mappings()
-            .unwrap();
-        for (source, dest) in &builder.mappings {
+        let mapper = PathMapper::from_env_or_default(&base).unwrap();
+        for (source, dest) in mapper.mappings() {
             assert!(
                 dest.starts_with(&base),
                 "mapping {source:?} -> {dest:?} escapes virtualization base"
