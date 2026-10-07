@@ -43,6 +43,18 @@ pub struct SeccompNotifResp {
 nix::ioctl_readwrite!(seccomp_notif_recv, b'!', 0, SeccompNotif);
 nix::ioctl_readwrite!(seccomp_notif_send, b'!', 1, SeccompNotifResp);
 
+/// Builds the response for a denied syscall. The kernel hands `error` back to
+/// the caller as the syscall result, so it must be a negative errno, and the
+/// CONTINUE flag must stay clear so the syscall is not executed.
+fn deny_response(id: u64) -> SeccompNotifResp {
+    SeccompNotifResp {
+        id,
+        val: 0,
+        error: -nix::libc::EPERM,
+        flags: 0,
+    }
+}
+
 // Syscall numbers (x86_64)
 const SYS_CONNECT: i32 = 42;
 const SYS_BIND: i32 = 49;
@@ -135,7 +147,7 @@ pub fn handle_notification(
 
     // Set error code based on decision
     if matches!(decision_action, DecisionAction::Deny) {
-        resp.error = 1; // EPERM
+        resp = deny_response(req.id);
     }
 
     // A redirect/virtualize decision only reaches this point when the mount
@@ -500,6 +512,14 @@ fn parse_sockaddr(data: &[u8]) -> Option<NetworkTarget> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn deny_response_returns_negative_eperm_without_continue() {
+        let resp = deny_response(42);
+        assert_eq!(resp.id, 42);
+        assert_eq!(resp.error, -nix::libc::EPERM);
+        assert_eq!(resp.flags & 1, 0);
+    }
 
     #[test]
     fn at_fdcwd_and_absolute_paths_pass_through() {
