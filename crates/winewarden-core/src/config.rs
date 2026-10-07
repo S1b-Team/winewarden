@@ -103,7 +103,7 @@ impl Config {
             trust: TrustConfig {
                 default_tier: TrustTier::Yellow,
                 pirate_safe: false,
-                auto_promote: true,
+                auto_promote: false,
                 promotion_after_runs: 3,
             },
             process: ProcessConfig {

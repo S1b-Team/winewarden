@@ -169,6 +169,8 @@ pub enum ParseError {
     InvalidRecordType(u16),
     /// Invalid pointer in name compression
     InvalidPointer,
+    /// Compression pointer loop detected in a domain name
+    PointerLoop,
 }
 
 impl fmt::Display for ParseError {
@@ -179,6 +181,7 @@ impl fmt::Display for ParseError {
             ParseError::Truncated => write!(f, "Truncated DNS packet"),
             ParseError::InvalidRecordType(t) => write!(f, "Invalid record type: {}", t),
             ParseError::InvalidPointer => write!(f, "Invalid name compression pointer"),
+            ParseError::PointerLoop => write!(f, "Compression pointer loop in domain name"),
         }
     }
 }
@@ -305,8 +308,12 @@ fn parse_record(data: &[u8], offset: usize) -> Result<(DnsRecord, usize), ParseE
 
 /// Parses a domain name (handling compression)
 fn parse_name(data: &[u8], offset: usize) -> Result<(String, usize), ParseError> {
+    const MAX_NAME_LABELS: usize = 128;
+    const MAX_COMPRESSION_JUMPS: usize = 32;
+
     let mut name_parts = Vec::new();
     let mut pos = offset;
+    let mut jumps = 0usize;
     let mut jumped = false;
     let mut jump_offset = offset;
 
@@ -326,6 +333,10 @@ fn parse_name(data: &[u8], offset: usize) -> Result<(String, usize), ParseError>
             if pointer >= data.len() {
                 return Err(ParseError::InvalidPointer);
             }
+            jumps += 1;
+            if jumps > MAX_COMPRESSION_JUMPS {
+                return Err(ParseError::PointerLoop);
+            }
             if !jumped {
                 jump_offset = pos + 2;
             }
@@ -341,6 +352,9 @@ fn parse_name(data: &[u8], offset: usize) -> Result<(String, usize), ParseError>
         }
 
         // Regular label
+        if name_parts.len() >= MAX_NAME_LABELS {
+            return Err(ParseError::InvalidName);
+        }
         pos += 1;
         if pos + label_len as usize > data.len() {
             return Err(ParseError::Truncated);
@@ -487,5 +501,82 @@ mod tests {
     fn test_parse_empty() {
         let result = parse_packet(&[]);
         assert!(matches!(result, Err(ParseError::TooShort)));
+    }
+
+    #[test]
+    fn test_self_referencing_compression_pointer_is_rejected() {
+        let mut packet = Vec::new();
+        packet.extend_from_slice(&[0x00, 0x01]); // ID
+        packet.extend_from_slice(&[0x01, 0x00]); // Flags: query
+        packet.extend_from_slice(&[0x00, 0x01]); // QDCOUNT = 1
+        packet.extend_from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+        // Question name at offset 12: compression pointer back to offset 12
+        packet.extend_from_slice(&[0xC0, 0x0C]);
+        packet.extend_from_slice(&[0x00, 0x01, 0x00, 0x01]); // QTYPE/QCLASS
+
+        let result = parse_packet(&packet);
+        assert!(matches!(result, Err(ParseError::PointerLoop)));
+    }
+
+    #[test]
+    fn test_mutual_compression_pointer_loop_is_rejected() {
+        let mut packet = Vec::new();
+        packet.extend_from_slice(&[0x00, 0x01]); // ID
+        packet.extend_from_slice(&[0x01, 0x00]); // Flags: query
+        packet.extend_from_slice(&[0x00, 0x01]); // QDCOUNT = 1
+        packet.extend_from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+        // Name at offset 12 points to offset 14, which points back to offset 12
+        packet.extend_from_slice(&[0xC0, 0x0E, 0xC0, 0x0C]);
+        packet.extend_from_slice(&[0x00, 0x01, 0x00, 0x01]); // QTYPE/QCLASS
+
+        let result = parse_packet(&packet);
+        assert!(matches!(result, Err(ParseError::PointerLoop)));
+    }
+
+    #[test]
+    fn test_excessive_compression_jump_chain_is_rejected() {
+        let mut packet = Vec::new();
+        packet.extend_from_slice(&[0x00, 0x01]); // ID
+        packet.extend_from_slice(&[0x01, 0x00]); // Flags: query
+        packet.extend_from_slice(&[0x00, 0x01]); // QDCOUNT = 1
+        packet.extend_from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+        // Chain of forward compression pointers longer than the jump limit
+        for _ in 0..40 {
+            packet.extend_from_slice(&[0xC0, (12 + 2) as u8]);
+        }
+        packet.extend_from_slice(&[0x00, 0x01, 0x00, 0x01]); // QTYPE/QCLASS
+
+        let result = parse_packet(&packet);
+        assert!(matches!(result, Err(ParseError::PointerLoop)));
+    }
+
+    #[test]
+    fn test_valid_compressed_name_still_parses() {
+        let mut packet = Vec::new();
+        packet.extend_from_slice(&[0x00, 0x01]); // ID
+        packet.extend_from_slice(&[0x81, 0x80]); // Flags: response
+        packet.extend_from_slice(&[0x00, 0x01]); // QDCOUNT = 1
+        packet.extend_from_slice(&[0x00, 0x01]); // ANCOUNT = 1
+        packet.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]);
+        // Question: example.com
+        packet.extend_from_slice(&[
+            0x07, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 0x03, b'c', b'o', b'm', 0x00,
+        ]);
+        packet.extend_from_slice(&[0x00, 0x01, 0x00, 0x01]); // QTYPE/QCLASS
+                                                             // Answer: compression pointer to offset 12 (the question name)
+        packet.extend_from_slice(&[0xC0, 0x0C]);
+        packet.extend_from_slice(&[0x00, 0x01]); // TYPE: A
+        packet.extend_from_slice(&[0x00, 0x01]); // CLASS: IN
+        packet.extend_from_slice(&[0x00, 0x00, 0x00, 0x3C]); // TTL: 60
+        packet.extend_from_slice(&[0x00, 0x04]); // RDLENGTH: 4
+        packet.extend_from_slice(&[0x7F, 0x00, 0x00, 0x01]); // 127.0.0.1
+
+        let packet = parse_packet(&packet).unwrap();
+        assert_eq!(packet.answers.len(), 1);
+        assert_eq!(packet.answers[0].name, "example.com");
+        match &packet.answers[0].rdata {
+            RecordData::A(ip) => assert_eq!(ip, &[0x7F, 0x00, 0x00, 0x01]),
+            other => panic!("expected A record, got {:?}", other),
+        }
     }
 }

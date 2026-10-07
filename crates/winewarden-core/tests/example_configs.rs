@@ -16,7 +16,7 @@ fn repo_config_files() -> Vec<std::path::PathBuf> {
         .expect("config/examples directory exists")
         .filter_map(|entry| entry.ok())
         .map(|entry| entry.path())
-        .filter(|path| path.extension().map_or(false, |ext| ext == "toml"))
+        .filter(|path| path.extension().is_some_and(|ext| ext == "toml"))
         .collect();
     example_files.sort();
     files.extend(example_files);
