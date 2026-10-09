@@ -540,10 +540,14 @@ mod tests {
         packet.extend_from_slice(&[0x01, 0x00]); // Flags: query
         packet.extend_from_slice(&[0x00, 0x01]); // QDCOUNT = 1
         packet.extend_from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-        // Chain of forward compression pointers longer than the jump limit
-        for _ in 0..40 {
-            packet.extend_from_slice(&[0xC0, (12 + 2) as u8]);
+        // Finite forward chain: each pointer targets the next distinct offset,
+        // then a zero label terminates the name. Longer than MAX_COMPRESSION_JUMPS.
+        let jumps = 40usize;
+        for i in 0..jumps {
+            let next = 12 + (i + 1) * 2;
+            packet.extend_from_slice(&[0xC0, next as u8]);
         }
+        packet.push(0x00); // end of name at offset 12 + jumps*2
         packet.extend_from_slice(&[0x00, 0x01, 0x00, 0x01]); // QTYPE/QCLASS
 
         let result = parse_packet(&packet);

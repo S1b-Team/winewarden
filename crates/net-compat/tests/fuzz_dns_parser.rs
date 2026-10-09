@@ -84,9 +84,13 @@ fn structured_corpus() -> Vec<Vec<u8>> {
     corpus.push(mutual);
 
     let mut long_chain = header(1, 0);
-    for _ in 0..64 {
-        long_chain.extend_from_slice(&[0xC0, 0x0E]);
+    // Finite forward chain with distinct next targets, terminated by a zero label.
+    let jumps = 64usize;
+    for i in 0..jumps {
+        let next = 12 + (i + 1) * 2;
+        long_chain.extend_from_slice(&[0xC0, next as u8]);
     }
+    long_chain.push(0x00);
     long_chain.extend_from_slice(&[0x00, 0x01, 0x00, 0x01]);
     corpus.push(long_chain);
 

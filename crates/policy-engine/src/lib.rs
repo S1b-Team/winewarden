@@ -129,9 +129,15 @@ impl PolicyEngine {
 
     /// Updates behavior profile based on an access attempt
     fn update_behavior_profile(&self, attempt: &AccessAttempt) {
-        if let winewarden_core::types::AccessKind::Write = attempt.kind {
-            if let AccessTarget::Path(path) = &attempt.target {
-                if let Some(path_str) = path.to_str() {
+        if let AccessTarget::Path(path) = &attempt.target {
+            if let Some(path_str) = path.to_str() {
+                // Credential / keyring / wallet paths must reach the sticky Red pin.
+                if BehaviorProfile::is_critical_path(path_str) {
+                    self.behavior_profile
+                        .borrow_mut()
+                        .record_sensitive_path(path_str);
+                }
+                if let winewarden_core::types::AccessKind::Write = attempt.kind {
                     self.behavior_profile
                         .borrow_mut()
                         .record_file_modification(path_str);
@@ -220,5 +226,37 @@ mod tests {
         // Score should decrease
         let new_score = engine.calculate_trust_score(TrustTier::Yellow);
         assert!(new_score.score <= score.score);
+    }
+
+    #[test]
+    fn evaluate_critical_path_activates_red_pin() {
+        let engine = create_test_engine();
+        let context = PolicyContext {
+            prefix_root: PathBuf::from("/tmp/prefix"),
+            trust_tier: TrustTier::Yellow,
+        };
+
+        let attempt = AccessAttempt {
+            timestamp: time::OffsetDateTime::now_utc(),
+            kind: AccessKind::Read,
+            target: AccessTarget::Path(PathBuf::from("/home/user/.ssh/id_rsa")),
+            note: None,
+        };
+
+        let _decision = engine.evaluate(&attempt, &context);
+        assert!(
+            engine.behavior_profile().has_critical_events(),
+            "evaluate must record critical path access via record_sensitive_path"
+        );
+
+        let score = engine.calculate_trust_score(TrustTier::Green);
+        assert_eq!(score.recommended_tier, TrustTier::Red);
+        assert!(score.score <= 25);
+        assert!(score.is_suspicious);
+        assert!(
+            score.assessment.starts_with("Critical") || score.assessment.starts_with("Poor"),
+            "assessment must agree with Red pin, got {}",
+            score.assessment
+        );
     }
 }

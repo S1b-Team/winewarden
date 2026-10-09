@@ -84,7 +84,7 @@ impl BehaviorProfile {
     ];
 
     /// Classifies a sensitive path as critical or not.
-    fn is_critical_path(path: &str) -> bool {
+    pub fn is_critical_path(path: &str) -> bool {
         let lowered = path.to_ascii_lowercase();
         Self::CRITICAL_PATH_MARKERS
             .iter()
@@ -257,9 +257,7 @@ pub fn calculate_trust_score(
     // Sticky critical events pin the recommendation to Red regardless of
     // accumulated good behavior: consistency bonuses must not recover from
     // credential/keyring/wallet access.
-    let mut pinned_red = false;
     if profile.has_critical_events() {
-        pinned_red = true;
         notes.push(
             "Sticky critical event: trust recovery is disabled (credentials/keyring/wallet access)"
                 .to_string(),
@@ -267,14 +265,11 @@ pub fn calculate_trust_score(
         for event in &profile.critical_events {
             notes.push(format!("Critical: {}", event));
         }
+        // Cap before TrustScore::new so assessment / is_suspicious match Red.
+        score = score.min(25);
     }
 
-    let mut score = TrustScore::new(score as u32, notes);
-    if pinned_red {
-        score.recommended_tier = TrustTier::Red;
-        score.score = score.score.min(25);
-    }
-    score
+    TrustScore::new(score.clamp(0, 100) as u32, notes)
 }
 
 /// Calculates network activity score
@@ -446,6 +441,12 @@ mod tests {
         let score = calculate_trust_score(TrustTier::Green, &profile, &config);
         assert_eq!(score.recommended_tier, TrustTier::Red);
         assert!(score.score <= 25);
+        assert!(score.is_suspicious);
+        assert!(
+            score.assessment.starts_with("Critical") || score.assessment.starts_with("Poor"),
+            "assessment must agree with Red pin, got {}",
+            score.assessment
+        );
         assert!(score
             .notes
             .iter()
