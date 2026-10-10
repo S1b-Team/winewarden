@@ -72,8 +72,13 @@ impl BehaviorProfile {
     const CRITICAL_DIRS: [&'static str; 5] = [".ssh", ".gnupg", ".aws", "keyring", "keyrings"];
 
     /// Exact filenames treated as critical secrets.
-    const CRITICAL_FILES: [&'static str; 5] =
-        ["id_rsa", "id_ed25519", ".gitconfig", "credentials", "wallet.dat"];
+    const CRITICAL_FILES: [&'static str; 5] = [
+        "id_rsa",
+        "id_ed25519",
+        ".gitconfig",
+        "credentials",
+        "wallet.dat",
+    ];
 
     /// Classifies a sensitive path as critical or not.
     ///
