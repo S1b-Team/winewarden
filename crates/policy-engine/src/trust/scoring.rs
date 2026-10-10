@@ -68,27 +68,47 @@ impl BehaviorProfile {
         Self::default()
     }
 
-    /// Paths whose access is treated as a critical, non-recoverable event.
-    /// Trust may be re-earned after noisy anomalies, never after these.
-    const CRITICAL_PATH_MARKERS: [&'static str; 10] = [
-        ".ssh",
-        "id_rsa",
-        "id_ed25519",
-        ".gnupg",
-        "keyring",
-        "wallet",
-        ".gitconfig",
-        ".git/config",
-        "credentials",
-        ".aws",
-    ];
+    /// Directory path segments that mark a protected tree (exact segment match).
+    const CRITICAL_DIRS: [&'static str; 5] = [".ssh", ".gnupg", ".aws", "keyring", "keyrings"];
+
+    /// Exact filenames treated as critical secrets.
+    const CRITICAL_FILES: [&'static str; 5] =
+        ["id_rsa", "id_ed25519", ".gitconfig", "credentials", "wallet.dat"];
 
     /// Classifies a sensitive path as critical or not.
+    ///
+    /// Matches protected locations and precise path segments / filenames
+    /// (e.g. `.ssh`, `id_rsa`, `.gnupg`, `wallet.dat`). Does **not** match
+    /// bare substrings inside unrelated names like `wallet-game`.
     pub fn is_critical_path(path: &str) -> bool {
-        let lowered = path.to_ascii_lowercase();
-        Self::CRITICAL_PATH_MARKERS
-            .iter()
-            .any(|marker| lowered.contains(marker))
+        let lowered = path.to_ascii_lowercase().replace('\\', "/");
+        let parts: Vec<&str> = lowered.split('/').filter(|p| !p.is_empty()).collect();
+
+        for (i, part) in parts.iter().enumerate() {
+            if Self::CRITICAL_DIRS.contains(part) {
+                return true;
+            }
+            if Self::CRITICAL_FILES.contains(part) {
+                return true;
+            }
+            // Common OpenSSH private key names (and .pub siblings).
+            if part.starts_with("id_rsa")
+                || part.starts_with("id_ed25519")
+                || part.starts_with("id_ecdsa")
+                || part.starts_with("id_dsa")
+            {
+                return true;
+            }
+            // Exact segment "wallet" / "wallets", not "wallet-game".
+            if *part == "wallet" || *part == "wallets" {
+                return true;
+            }
+            // `.git/config` (config as the next segment under `.git`).
+            if *part == ".git" && parts.get(i + 1) == Some(&"config") {
+                return true;
+            }
+        }
+        false
     }
 
     /// Records a sensitive path access attempt
@@ -489,8 +509,19 @@ mod tests {
             "/home/u/.aws/credentials"
         ));
         assert!(BehaviorProfile::is_critical_path("/home/u/.gitconfig"));
+        assert!(BehaviorProfile::is_critical_path("/home/u/.git/config"));
+        assert!(BehaviorProfile::is_critical_path(
+            "C:/Users/u/.ssh/id_ed25519"
+        ));
         assert!(!BehaviorProfile::is_critical_path("/home/u/game/save"));
         assert!(!BehaviorProfile::is_critical_path("/tmp/prefix/drive_c"));
+        // Substring in an unrelated prefix must not pin Red.
+        assert!(!BehaviorProfile::is_critical_path(
+            "/tmp/wallet-game/drive_c/save.bin"
+        ));
+        assert!(!BehaviorProfile::is_critical_path(
+            "/home/u/games/keyring-hero/save.dat"
+        ));
     }
 
     #[test]

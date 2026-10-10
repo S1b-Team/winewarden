@@ -259,4 +259,29 @@ mod tests {
             score.assessment
         );
     }
+
+    #[test]
+    fn evaluate_game_prefix_wallet_substring_does_not_pin_red() {
+        let engine = create_test_engine();
+        let context = PolicyContext {
+            prefix_root: PathBuf::from("/tmp/wallet-game"),
+            trust_tier: TrustTier::Yellow,
+        };
+
+        let attempt = AccessAttempt {
+            timestamp: time::OffsetDateTime::now_utc(),
+            kind: AccessKind::Read,
+            target: AccessTarget::Path(PathBuf::from("/tmp/wallet-game/drive_c/save.bin")),
+            note: None,
+        };
+
+        let _decision = engine.evaluate(&attempt, &context);
+        assert!(
+            !engine.behavior_profile().has_critical_events(),
+            "a game-prefix path that merely contains the word wallet must not pin Red"
+        );
+
+        let score = engine.calculate_trust_score(TrustTier::Green);
+        assert_ne!(score.recommended_tier, TrustTier::Red);
+    }
 }
