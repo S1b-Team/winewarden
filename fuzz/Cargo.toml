@@ -1,0 +1,18 @@
+[package]
+name = "winewarden-fuzz"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+libfuzzer-sys = "0.4"
+net-compat = { path = "../crates/net-compat" }
+
+[[bin]]
+name = "dns_parser"
+path = "fuzz_targets/dns_parser.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]

@@ -7,7 +7,7 @@ systemic_risk_only = true
 [trust]
 default_tier = "yellow"
 pirate_safe = false
-auto_promote = true
+auto_promote = false
 promotion_after_runs = 3
 
 [process]

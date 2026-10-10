@@ -191,7 +191,10 @@ emergency_only = true
 
 [trust]
 default_tier = "yellow"
-auto_promote = true
+# Auto-promotion is disabled by default: a run can earn trust, but "behaved
+# well a few times" must never silently grant a Green tier. Enable it only
+# for titles you have fully audited.
+auto_promote = false
 promotion_after_runs = 3
 
 [process]

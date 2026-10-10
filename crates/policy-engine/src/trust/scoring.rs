@@ -58,6 +58,8 @@ pub struct BehaviorProfile {
     pub denied_attempts: u32,
     /// Suspicious patterns detected
     pub suspicious_patterns: Vec<String>,
+    /// Critical events (credentials, keyrings, wallets) that are sticky
+    pub critical_events: Vec<String>,
 }
 
 impl BehaviorProfile {
@@ -66,10 +68,62 @@ impl BehaviorProfile {
         Self::default()
     }
 
+    /// Directory path segments that mark a protected tree (exact segment match).
+    const CRITICAL_DIRS: [&'static str; 5] = [".ssh", ".gnupg", ".aws", "keyring", "keyrings"];
+
+    /// Exact filenames treated as critical secrets.
+    const CRITICAL_FILES: [&'static str; 5] = [
+        "id_rsa",
+        "id_ed25519",
+        ".gitconfig",
+        "credentials",
+        "wallet.dat",
+    ];
+
+    /// Classifies a sensitive path as critical or not.
+    ///
+    /// Matches protected locations and precise path segments / filenames
+    /// (e.g. `.ssh`, `id_rsa`, `.gnupg`, `wallet.dat`). Does **not** match
+    /// bare substrings inside unrelated names like `wallet-game`.
+    pub fn is_critical_path(path: &str) -> bool {
+        let lowered = path.to_ascii_lowercase().replace('\\', "/");
+        let parts: Vec<&str> = lowered.split('/').filter(|p| !p.is_empty()).collect();
+
+        for (i, part) in parts.iter().enumerate() {
+            if Self::CRITICAL_DIRS.contains(part) {
+                return true;
+            }
+            if Self::CRITICAL_FILES.contains(part) {
+                return true;
+            }
+            // Common OpenSSH private key names (and .pub siblings).
+            if part.starts_with("id_rsa")
+                || part.starts_with("id_ed25519")
+                || part.starts_with("id_ecdsa")
+                || part.starts_with("id_dsa")
+            {
+                return true;
+            }
+            // Exact segment "wallet" / "wallets", not "wallet-game".
+            if *part == "wallet" || *part == "wallets" {
+                return true;
+            }
+            // `.git/config` (config as the next segment under `.git`).
+            if *part == ".git" && parts.get(i + 1) == Some(&"config") {
+                return true;
+            }
+        }
+        false
+    }
+
     /// Records a sensitive path access attempt
     pub fn record_sensitive_path(&mut self, path: &str) {
         self.sensitive_path_attempts += 1;
         self.suspicious_patterns.push(format!("Accessed: {}", path));
+        if Self::is_critical_path(path) {
+            self.critical_events
+                .push(format!("Critical path accessed: {}", path));
+        }
     }
 
     /// Records an outbound connection
@@ -107,6 +161,12 @@ impl BehaviorProfile {
         self.sensitive_path_attempts > 0
             || self.denied_attempts > 5
             || !self.suspicious_patterns.is_empty()
+    }
+
+    /// Returns true if any sticky critical event was observed. Such events
+    /// permanently pin the recommendation to the Red tier.
+    pub fn has_critical_events(&self) -> bool {
+        !self.critical_events.is_empty()
     }
 }
 
@@ -219,7 +279,22 @@ pub fn calculate_trust_score(
         notes.push(format!("Suspicious: {}", pattern));
     }
 
-    TrustScore::new(score as u32, notes)
+    // Sticky critical events pin the recommendation to Red regardless of
+    // accumulated good behavior: consistency bonuses must not recover from
+    // credential/keyring/wallet access.
+    if profile.has_critical_events() {
+        notes.push(
+            "Sticky critical event: trust recovery is disabled (credentials/keyring/wallet access)"
+                .to_string(),
+        );
+        for event in &profile.critical_events {
+            notes.push(format!("Critical: {}", event));
+        }
+        // Cap before TrustScore::new so assessment / is_suspicious match Red.
+        score = score.min(25);
+    }
+
+    TrustScore::new(score.clamp(0, 100) as u32, notes)
 }
 
 /// Calculates network activity score
@@ -378,6 +453,80 @@ mod tests {
         assert_eq!(TrustScore::tier_from_score(90), TrustTier::Green);
         assert_eq!(TrustScore::tier_from_score(60), TrustTier::Yellow);
         assert_eq!(TrustScore::tier_from_score(20), TrustTier::Red);
+    }
+
+    #[test]
+    fn test_critical_path_pins_red_tier() {
+        let config = TrustScoringConfig::default();
+
+        let mut profile = BehaviorProfile::new();
+        profile.record_sensitive_path("/home/user/.ssh/id_rsa");
+        assert!(profile.has_critical_events());
+
+        let score = calculate_trust_score(TrustTier::Green, &profile, &config);
+        assert_eq!(score.recommended_tier, TrustTier::Red);
+        assert!(score.score <= 25);
+        assert!(score.is_suspicious);
+        assert!(
+            score.assessment.starts_with("Critical") || score.assessment.starts_with("Poor"),
+            "assessment must agree with Red pin, got {}",
+            score.assessment
+        );
+        assert!(score
+            .notes
+            .iter()
+            .any(|n| n.contains("Sticky critical event")));
+    }
+
+    #[test]
+    fn test_non_critical_sensitive_path_does_not_pin() {
+        let config = TrustScoringConfig::default();
+
+        let mut profile = BehaviorProfile::new();
+        profile.record_sensitive_path("/home/user/Documents/notes.txt");
+        assert!(!profile.has_critical_events());
+
+        let score = calculate_trust_score(TrustTier::Green, &profile, &config);
+        assert_ne!(score.recommended_tier, TrustTier::Red);
+    }
+
+    #[test]
+    fn test_critical_event_sticks_despite_clean_behavior() {
+        let config = TrustScoringConfig::default();
+
+        let mut profile = BehaviorProfile::new();
+        profile.record_sensitive_path("/home/user/.ssh/id_ed25519");
+        // Simulate long clean runtime: many benign modifications, no denials.
+        for _ in 0..50 {
+            profile.record_file_modification("/game/save.bin");
+        }
+
+        let score = calculate_trust_score(TrustTier::Green, &profile, &config);
+        assert_eq!(score.recommended_tier, TrustTier::Red);
+    }
+
+    #[test]
+    fn test_critical_path_detection() {
+        assert!(BehaviorProfile::is_critical_path("/home/u/.ssh/id_rsa"));
+        assert!(BehaviorProfile::is_critical_path("/home/u/.gnupg"));
+        assert!(BehaviorProfile::is_critical_path("/home/u/wallet.dat"));
+        assert!(BehaviorProfile::is_critical_path(
+            "/home/u/.aws/credentials"
+        ));
+        assert!(BehaviorProfile::is_critical_path("/home/u/.gitconfig"));
+        assert!(BehaviorProfile::is_critical_path("/home/u/.git/config"));
+        assert!(BehaviorProfile::is_critical_path(
+            "C:/Users/u/.ssh/id_ed25519"
+        ));
+        assert!(!BehaviorProfile::is_critical_path("/home/u/game/save"));
+        assert!(!BehaviorProfile::is_critical_path("/tmp/prefix/drive_c"));
+        // Substring in an unrelated prefix must not pin Red.
+        assert!(!BehaviorProfile::is_critical_path(
+            "/tmp/wallet-game/drive_c/save.bin"
+        ));
+        assert!(!BehaviorProfile::is_critical_path(
+            "/home/u/games/keyring-hero/save.dat"
+        ));
     }
 
     #[test]

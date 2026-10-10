@@ -298,7 +298,7 @@ mod tests {
 
 #[cfg(test)]
 mod exec_wiring_tests {
-    use super::*;
+
     use crate::PolicyContext;
     use crate::PolicyEngine;
     use winewarden_core::config::Config;
