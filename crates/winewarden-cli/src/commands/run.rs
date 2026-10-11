@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
@@ -8,7 +7,6 @@ use monitor::{Monitor, RunRequest};
 use policy_engine::PolicyEngine;
 use prefix_manager::PrefixManager;
 use reporting::SessionReport;
-use runner::{Runner, RunnerRequest};
 use winewarden_core::config::{Config, ConfigPaths};
 use winewarden_core::ipc::{
     resolve_socket_path, send_request, RunRequestPayload, WineWardenRequest, WineWardenResponse,
@@ -76,15 +74,6 @@ pub fn execute(inputs: RunInputs) -> Result<()> {
             println!("Prefix hygiene findings detected: {}", findings.len());
         }
     }
-
-    let runner = Runner::new();
-    let runner_request = RunnerRequest {
-        executable: inputs.executable.clone(),
-        args: inputs.args.clone(),
-        prefix_root: prefix_root.clone(),
-        env: HashMap::new(),
-    };
-    let _command = runner.dry_run(&runner_request)?;
 
     let policy = PolicyEngine::from_config(config.clone(), &paths)?;
     let monitor = Monitor::new(policy);

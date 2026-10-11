@@ -262,7 +262,6 @@ redirect_to = "${DATA_DIR}/virtual/home"
 - **`net-compat`**: DNS parsing, destination tracking, network telemetry
 - **`prefix-manager`**: Prefix hygiene, snapshots, quarantine
 - **`reporting`**: Report generation (human + JSON)
-- **`runner`**: Safe command construction and execution
 
 ## 📊 Trust Tiers
 

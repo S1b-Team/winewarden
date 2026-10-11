@@ -3,7 +3,6 @@ members = [
   "crates/winewarden-cli",
   "crates/winewarden-core",
   "crates/policy-engine",
-  "crates/runner",
   "crates/monitor",
   "crates/prefix-manager",
   "crates/net-compat",
