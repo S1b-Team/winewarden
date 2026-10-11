@@ -17,7 +17,6 @@ use monitor::{Monitor, RunRequest};
 use policy_engine::PolicyEngine;
 use prefix_manager::PrefixManager;
 use reporting::SessionReport;
-use runner::{Runner, RunnerRequest};
 
 mod ipc;
 
@@ -119,15 +118,6 @@ fn execute_run(payload: RunRequestPayload) -> Result<SessionReport> {
             println!("Prefix hygiene findings detected: {}", findings.len());
         }
     }
-
-    let runner = Runner::new();
-    let runner_request = RunnerRequest {
-        executable: payload.executable.clone(),
-        args: payload.args.clone(),
-        prefix_root: prefix_root.clone(),
-        env: Default::default(),
-    };
-    let _command = runner.dry_run(&runner_request)?;
 
     let policy = PolicyEngine::from_config(config.clone(), &paths)?;
     let monitor = Monitor::new(policy);

@@ -964,14 +964,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "runner"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "serde",
-]
-
-[[package]]
 name = "rustix"
 version = "0.38.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1635,7 +1627,6 @@ dependencies = [
  "prefix-manager",
  "ratatui",
  "reporting",
- "runner",
  "serde",
  "serde_json",
  "time",
@@ -1668,7 +1659,6 @@ dependencies = [
  "policy-engine",
  "prefix-manager",
  "reporting",
- "runner",
  "serde",
  "serde_json",
  "time",
