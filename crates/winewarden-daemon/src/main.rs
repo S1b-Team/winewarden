@@ -11,7 +11,6 @@ use winewarden_core::ipc::{
     WineWardenRequest, WineWardenResponse,
 };
 use winewarden_core::store::{ExecutableIdentity, TrustStore};
-use winewarden_core::trust::TrustTier;
 
 use monitor::{Monitor, RunRequest};
 use policy_engine::PolicyEngine;
@@ -97,12 +96,12 @@ fn execute_run(payload: RunRequestPayload) -> Result<SessionReport> {
 
     let mut trust_tier = base_tier;
     if config.trust.pirate_safe || payload.pirate_safe {
-        trust_tier = downgrade_tier(trust_tier);
+        trust_tier = trust_tier.downgraded();
     }
 
     let prefix_root = payload
         .prefix_root
-        .unwrap_or_else(|| default_prefix_path(&paths, trust_tier));
+        .unwrap_or_else(|| paths.default_prefix(trust_tier));
 
     if config.prefix.snapshot_before_first_run
         && !trust_store.records.contains_key(&identity.sha256)
@@ -143,22 +142,10 @@ fn execute_run(payload: RunRequestPayload) -> Result<SessionReport> {
     trust_store.record_run(identity, trust_tier);
     trust_store.save(&paths.trust_db_path)?;
 
-    store_report(&paths, &config, &report)?;
-    Ok(report)
-}
-
-fn store_report(paths: &ConfigPaths, config: &Config, report: &SessionReport) -> Result<()> {
-    if !config.reporting.store_reports {
-        return Ok(());
+    if config.reporting.store_reports {
+        report.write_to(&paths.report_dir)?;
     }
-    std::fs::create_dir_all(&paths.report_dir)
-        .with_context(|| format!("create report dir {}", paths.report_dir.display()))?;
-
-    let report_path = paths.report_dir.join(format!("{}.json", report.session_id));
-    let contents = serde_json::to_string_pretty(report).context("render report JSON")?;
-    std::fs::write(&report_path, contents)
-        .with_context(|| format!("write report {}", report_path.display()))?;
-    Ok(())
+    Ok(report)
 }
 
 fn load_config(path: Option<&PathBuf>, paths: &ConfigPaths) -> Result<Config> {
@@ -166,23 +153,6 @@ fn load_config(path: Option<&PathBuf>, paths: &ConfigPaths) -> Result<Config> {
         Some(path) => Config::load(path),
         None => Config::load(&paths.config_path).or_else(|_| Ok(Config::default_config())),
     }
-}
-
-fn downgrade_tier(tier: TrustTier) -> TrustTier {
-    match tier {
-        TrustTier::Green => TrustTier::Yellow,
-        TrustTier::Yellow => TrustTier::Red,
-        TrustTier::Red => TrustTier::Red,
-    }
-}
-
-fn default_prefix_path(paths: &ConfigPaths, tier: TrustTier) -> PathBuf {
-    let tier_name = match tier {
-        TrustTier::Green => "green",
-        TrustTier::Yellow => "yellow",
-        TrustTier::Red => "red",
-    };
-    paths.data_dir.join("prefixes").join(tier_name)
 }
 
 fn write_pid_file(path: &PathBuf) -> Result<()> {

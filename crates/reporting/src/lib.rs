@@ -1,3 +1,7 @@
+use std::fs;
+use std::path::Path;
+
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use time::Duration;
 use uuid::Uuid;
@@ -47,6 +51,14 @@ impl SessionReport {
     pub fn duration(&self) -> Option<Duration> {
         let end = self.metadata.ended_at?;
         Some(end - self.metadata.started_at)
+    }
+
+    /// Writes the report as `<session_id>.json` under `dir`.
+    pub fn write_to(&self, dir: &Path) -> Result<()> {
+        fs::create_dir_all(dir).with_context(|| format!("create report dir {}", dir.display()))?;
+        let path = dir.join(format!("{}.json", self.session_id));
+        let contents = serde_json::to_string_pretty(self).context("render report JSON")?;
+        fs::write(&path, contents).with_context(|| format!("write report {}", path.display()))
     }
 
     pub fn human_summary(&self) -> String {
