@@ -1,4 +1,3 @@
-use std::fs;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
@@ -6,7 +5,6 @@ use anyhow::{Context, Result};
 use monitor::{Monitor, RunRequest};
 use policy_engine::PolicyEngine;
 use prefix_manager::PrefixManager;
-use reporting::SessionReport;
 use winewarden_core::config::{Config, ConfigPaths};
 use winewarden_core::ipc::{
     resolve_socket_path, send_request, RunRequestPayload, WineWardenRequest, WineWardenResponse,
@@ -53,12 +51,12 @@ pub fn execute(inputs: RunInputs) -> Result<()> {
 
     let mut trust_tier = base_tier;
     if config.trust.pirate_safe || inputs.pirate_safe {
-        trust_tier = downgrade_tier(trust_tier);
+        trust_tier = trust_tier.downgraded();
     }
 
     let prefix_root = inputs
         .prefix
-        .unwrap_or_else(|| default_prefix_path(&paths, trust_tier));
+        .unwrap_or_else(|| paths.default_prefix(trust_tier));
 
     if config.prefix.snapshot_before_first_run
         && !trust_store.records.contains_key(&identity.sha256)
@@ -93,7 +91,9 @@ pub fn execute(inputs: RunInputs) -> Result<()> {
     trust_store.record_run(identity, trust_tier);
     trust_store.save(&paths.trust_db_path)?;
 
-    store_report(&paths, &config, &report)?;
+    if config.reporting.store_reports {
+        report.write_to(&paths.report_dir)?;
+    }
     println!("{}", report.human_summary());
     Ok(())
 }
@@ -119,40 +119,5 @@ fn run_via_daemon(inputs: RunInputs) -> Result<()> {
         }
         WineWardenResponse::Error(error) => Err(anyhow::anyhow!(error.message)),
         other => Err(anyhow::anyhow!("unexpected response: {other:?}")),
-    }
-}
-
-fn store_report(paths: &ConfigPaths, config: &Config, report: &SessionReport) -> Result<()> {
-    if !config.reporting.store_reports {
-        return Ok(());
-    }
-    fs::create_dir_all(&paths.report_dir)
-        .with_context(|| format!("create report dir {}", paths.report_dir.display()))?;
-
-    let report_path = paths.report_dir.join(format!("{}.json", report.session_id));
-    let contents = serde_json::to_string_pretty(report).context("render report JSON")?;
-    fs::write(&report_path, contents)
-        .with_context(|| format!("write report {}", report_path.display()))?;
-    Ok(())
-}
-
-fn downgrade_tier(tier: TrustTier) -> TrustTier {
-    match tier {
-        TrustTier::Green => TrustTier::Yellow,
-        TrustTier::Yellow => TrustTier::Red,
-        TrustTier::Red => TrustTier::Red,
-    }
-}
-
-fn default_prefix_path(paths: &ConfigPaths, tier: TrustTier) -> PathBuf {
-    let tier_name = tier_string(tier);
-    paths.data_dir.join("prefixes").join(tier_name)
-}
-
-fn tier_string(tier: TrustTier) -> &'static str {
-    match tier {
-        TrustTier::Green => "green",
-        TrustTier::Yellow => "yellow",
-        TrustTier::Red => "red",
     }
 }

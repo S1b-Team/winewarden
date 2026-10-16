@@ -956,8 +956,10 @@ dependencies = [
 name = "reporting"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "policy-engine",
  "serde",
+ "serde_json",
  "time",
  "uuid",
  "winewarden-core",

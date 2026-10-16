@@ -212,4 +212,9 @@ impl ConfigPaths {
             snapshot_dir,
         })
     }
+
+    /// Default Wine prefix for a trust tier when none is given.
+    pub fn default_prefix(&self, tier: TrustTier) -> PathBuf {
+        self.data_dir.join("prefixes").join(tier.to_string())
+    }
 }

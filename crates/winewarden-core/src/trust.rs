@@ -30,6 +30,16 @@ impl TrustSignal {
     }
 }
 
+impl TrustTier {
+    /// One step stricter, used for pirate-safe runs.
+    pub fn downgraded(self) -> Self {
+        match self {
+            TrustTier::Green => TrustTier::Yellow,
+            TrustTier::Yellow | TrustTier::Red => TrustTier::Red,
+        }
+    }
+}
+
 impl FromStr for TrustTier {
     type Err = String;
 
