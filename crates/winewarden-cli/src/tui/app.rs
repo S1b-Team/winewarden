@@ -5,11 +5,12 @@
 #![allow(dead_code)] // Many methods are for future integration
 
 use std::collections::VecDeque;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use policy_engine::trust::scoring::TrustScore;
+use time::OffsetDateTime;
 use winewarden_core::trust::TrustTier;
-use winewarden_core::types::AccessAttempt;
+use winewarden_core::types::{AccessAttempt, RunMetadata};
 
 /// Maximum number of events to keep in history
 const MAX_EVENTS: usize = 1000;
@@ -126,6 +127,8 @@ pub struct App {
     pub dns_queries: Vec<DnsInfo>,
     /// Session start time
     pub session_start: Instant,
+    /// Session end time, set once the session has finished
+    pub session_end: Option<Instant>,
     /// Total events processed
     pub total_events: u64,
     /// Denied events count
@@ -157,6 +160,7 @@ impl App {
             connections: Vec::new(),
             dns_queries: Vec::new(),
             session_start: Instant::now(),
+            session_end: None,
             total_events: 0,
             denied_events: 0,
             event_filter: String::new(),
@@ -165,9 +169,26 @@ impl App {
         }
     }
 
+    /// Takes the trust tier and start/end times from the session metadata
+    pub fn set_session(&mut self, metadata: &RunMetadata) {
+        let now = Instant::now();
+        let since_start = to_std(OffsetDateTime::now_utc() - metadata.started_at);
+        self.session_start = now.checked_sub(since_start).unwrap_or(now);
+        self.session_end = metadata
+            .ended_at
+            .map(|end| self.session_start + to_std(end - metadata.started_at));
+        self.trust_tier = metadata.trust_tier;
+    }
+
+    fn session_elapsed(&self) -> Duration {
+        self.session_end
+            .unwrap_or_else(Instant::now)
+            .saturating_duration_since(self.session_start)
+    }
+
     /// Returns session duration as string
     pub fn session_duration(&self) -> String {
-        let duration = self.session_start.elapsed();
+        let duration = self.session_elapsed();
         let hours = duration.as_secs() / 3600;
         let minutes = (duration.as_secs() % 3600) / 60;
         let seconds = duration.as_secs() % 60;
@@ -275,7 +296,7 @@ impl App {
 
     /// Returns events per second
     pub fn events_per_second(&self) -> f64 {
-        let duration_secs = self.session_start.elapsed().as_secs_f64();
+        let duration_secs = self.session_elapsed().as_secs_f64();
         if duration_secs > 0.0 {
             self.total_events as f64 / duration_secs
         } else {
@@ -316,6 +337,10 @@ impl App {
     pub fn quit(&mut self) {
         self.running = false;
     }
+}
+
+fn to_std(duration: time::Duration) -> Duration {
+    Duration::try_from(duration).unwrap_or_default()
 }
 
 #[cfg(test)]

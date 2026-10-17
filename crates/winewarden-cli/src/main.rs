@@ -89,6 +89,9 @@ enum Commands {
         /// Session ID to monitor (optional, starts new if not provided)
         #[arg(long)]
         session: Option<String>,
+        /// Show a finished session report (JSON written by `winewarden run`)
+        #[arg(long)]
+        report: Option<PathBuf>,
     },
 }
 
@@ -208,10 +211,7 @@ fn main() -> Result<()> {
                 Ok(())
             }
         }
-        Commands::Monitor { session: _ } => {
-            // Launch the TUI
-            tui::run_tui()
-        }
+        Commands::Monitor { session: _, report } => tui::run_tui(report.as_deref()),
     }
 }
 
