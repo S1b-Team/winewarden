@@ -7,8 +7,6 @@
 //! - Process tracking
 //! - Event log with filtering
 
-#![allow(dead_code)] // API methods for future integration
-
 use std::io;
 use std::time::Duration;
 
@@ -87,27 +85,6 @@ fn run_event_loop<B: Backend>(
     Ok(())
 }
 
-/// Checks if the TUI is available (terminal supports it)
-pub fn available() -> bool {
-    // Check if we're in a terminal
-    terminal::is_raw_mode_enabled().ok().is_some() || atty::is(atty::Stream::Stdout)
-}
-
-/// Initializes the TUI and returns the terminal instance
-pub fn init_tui() -> Result<Terminal<impl Backend>> {
-    terminal::enable_raw_mode().context("enable raw mode")?;
-    let stdout = io::stdout();
-    let backend = CrosstermBackend::new(stdout);
-    let terminal = Terminal::new(backend).context("create terminal")?;
-    Ok(terminal)
-}
-
-/// Restores the terminal to normal state
-pub fn restore_tui() -> Result<()> {
-    terminal::disable_raw_mode().context("disable raw mode")?;
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -116,12 +93,5 @@ mod tests {
     fn test_app_creation() {
         let app = App::new();
         assert!(app.running);
-    }
-
-    #[test]
-    fn test_available() {
-        // This will vary depending on test environment
-        // Just verify it doesn't panic
-        let _ = available();
     }
 }

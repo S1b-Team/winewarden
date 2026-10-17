@@ -5,7 +5,7 @@
 #![allow(dead_code)] // Many methods are for future integration
 
 use std::collections::VecDeque;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use policy_engine::trust::scoring::TrustScore;
 use winewarden_core::trust::TrustTier;
@@ -136,10 +136,6 @@ pub struct App {
     pub selected_event: usize,
     /// Auto-scroll events
     pub auto_scroll: bool,
-    /// Last update time
-    pub last_update: Instant,
-    /// Update interval
-    pub update_interval: Duration,
 }
 
 impl Default for App {
@@ -166,8 +162,6 @@ impl App {
             event_filter: String::new(),
             selected_event: 0,
             auto_scroll: true,
-            last_update: Instant::now(),
-            update_interval: Duration::from_millis(250),
         }
     }
 

@@ -2,8 +2,6 @@
 //!
 //! Handles keyboard input and other events for the TUI.
 
-#![allow(dead_code)] // API for future integration
-
 use std::time::{Duration, Instant};
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
@@ -17,8 +15,6 @@ pub enum TuiEvent {
     Tick,
     /// Keyboard input
     Key(KeyEvent),
-    /// Window resize
-    Resize(u16, u16),
 }
 
 /// Event handler for the TUI
@@ -44,7 +40,6 @@ impl EventHandler {
         if event::poll(timeout)? {
             match event::read()? {
                 Event::Key(key) => Ok(Some(TuiEvent::Key(key))),
-                Event::Resize(w, h) => Ok(Some(TuiEvent::Resize(w, h))),
                 _ => Ok(None),
             }
         } else {
@@ -62,9 +57,6 @@ pub fn handle_event(app: &mut App, event: TuiEvent) -> anyhow::Result<()> {
             // In a real implementation, this would poll for new data
         }
         TuiEvent::Key(key) => handle_key_event(app, key)?,
-        TuiEvent::Resize(_, _) => {
-            // Terminal will automatically handle resize
-        }
     }
     Ok(())
 }
