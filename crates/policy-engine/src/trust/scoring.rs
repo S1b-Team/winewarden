@@ -3,6 +3,7 @@
 //! Calculates trust scores based on observed behavior patterns during execution.
 //! Scores can trigger trust tier adjustments and policy enforcement changes.
 
+use serde::{Deserialize, Serialize};
 use winewarden_core::trust::TrustTier;
 
 /// Trust scoring configuration
@@ -171,7 +172,7 @@ impl BehaviorProfile {
 }
 
 /// Calculated trust score with details
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrustScore {
     /// Numerical score (0-100, higher is more trustworthy)
     pub score: u32,
