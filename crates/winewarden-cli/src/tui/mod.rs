@@ -8,6 +8,7 @@
 //! - Event log with filtering
 
 use std::io;
+use std::path::Path;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
@@ -22,13 +23,19 @@ use ratatui::{
 
 mod app;
 mod events;
+mod feed;
 mod ui;
 
 pub use app::App;
 pub use events::EventHandler;
 
-/// Runs the TUI application
-pub fn run_tui() -> Result<()> {
+/// Runs the TUI application, optionally showing a finished session report
+pub fn run_tui(report: Option<&Path>) -> Result<()> {
+    let mut app = App::new();
+    if let Some(path) = report {
+        feed::load_report(&mut app, feed::read_report(path)?);
+    }
+
     // Setup terminal
     terminal::enable_raw_mode().context("enable raw mode")?;
     let mut stdout = io::stdout();
@@ -37,9 +44,6 @@ pub fn run_tui() -> Result<()> {
 
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend).context("create terminal")?;
-
-    // Create app state
-    let mut app = App::new();
 
     // Create event handler with 250ms tick rate
     let mut event_handler = EventHandler::new(Duration::from_millis(250));
