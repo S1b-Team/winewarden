@@ -5,6 +5,7 @@ use anyhow::{Context, Result};
 use monitor::{Monitor, RunRequest};
 use policy_engine::PolicyEngine;
 use prefix_manager::PrefixManager;
+use reporting::live::default_live_dir;
 use winewarden_core::config::{Config, ConfigPaths};
 use winewarden_core::ipc::{
     resolve_socket_path, send_request, RunRequestPayload, WineWardenRequest, WineWardenResponse,
@@ -84,6 +85,7 @@ pub fn execute(inputs: RunInputs) -> Result<()> {
         event_log: inputs.event_log,
         no_run: inputs.no_run,
         live_monitor: inputs.live_monitor.clone(),
+        live_log_dir: Some(default_live_dir(&paths)),
     };
 
     let report = monitor.run(request)?;

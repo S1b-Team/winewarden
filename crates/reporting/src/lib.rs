@@ -10,6 +10,10 @@ use policy_engine::{DecisionAction, PolicyDecision};
 use winewarden_core::trust::{TrustSignal, TrustTier};
 use winewarden_core::types::{AccessAttempt, RunMetadata};
 
+pub mod live;
+
+pub use live::{LiveEvent, LiveLog};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReportEvent {
     pub attempt: AccessAttempt,

@@ -15,6 +15,7 @@ use winewarden_core::store::{ExecutableIdentity, TrustStore};
 use monitor::{Monitor, RunRequest};
 use policy_engine::PolicyEngine;
 use prefix_manager::PrefixManager;
+use reporting::live::default_live_dir;
 use reporting::SessionReport;
 
 mod ipc;
@@ -135,6 +136,7 @@ fn execute_run(payload: RunRequestPayload) -> Result<SessionReport> {
         event_log: payload.event_log,
         no_run: payload.no_run,
         live_monitor: live,
+        live_log_dir: Some(default_live_dir(&paths)),
     };
 
     let report = monitor.run(request)?;

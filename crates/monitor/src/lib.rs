@@ -6,7 +6,7 @@ use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::thread::sleep;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use nix::poll::{poll, PollFd, PollFlags, PollTimeout};
@@ -17,6 +17,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use policy_engine::{PolicyContext, PolicyEngine};
+use reporting::live::{LiveEvent, LiveLog, ProcessState};
 use reporting::{trust_signal_for_tier, ReportEvent, SessionReport};
 use winewarden_core::trust::TrustTier;
 use winewarden_core::types::{AccessAttempt, LiveMonitorConfig, RunMetadata};
@@ -78,7 +79,12 @@ pub struct RunRequest {
     pub event_log: Option<PathBuf>,
     pub no_run: bool,
     pub live_monitor: Option<LiveMonitorConfig>,
+    /// Directory for the live `<session_id>.jsonl` log; no log when unset
+    #[serde(default)]
+    pub live_log_dir: Option<PathBuf>,
 }
+
+const TRUST_INTERVAL: Duration = Duration::from_secs(1);
 
 pub struct Monitor {
     policy: PolicyEngine,
@@ -101,12 +107,22 @@ impl Monitor {
             trust_tier: request.trust_tier,
         };
 
+        let mut live = open_live_log(request.live_log_dir.as_deref(), session_id);
+        live.write(&LiveEvent::Session {
+            metadata: metadata.clone(),
+        });
+
         let mut child_process = None;
         let mut seccomp_fd: Option<OwnedFd> = None;
 
         if !request.no_run {
             let (child, rx_fd) =
                 self.spawn_process(&request.executable, &request.args, &request.prefix_root)?;
+            live.write(&LiveEvent::Process {
+                pid: child.id(),
+                exe: request.executable.clone(),
+                state: ProcessState::Started,
+            });
             child_process = Some(child);
 
             if let Some(rx) = rx_fd {
@@ -142,6 +158,7 @@ impl Monitor {
             let mut seen_pids = HashSet::new();
             let mut seen_net = HashSet::new();
             seen_pids.insert(child.id());
+            let mut last_trust = Instant::now();
 
             while child.try_wait()?.is_none() {
                 // Handle Seccomp Notifications
@@ -170,9 +187,11 @@ impl Monitor {
                                     &policy_context,
                                     &mut handler_ctx,
                                 ) {
-                                    Ok(Some((attempt, decision))) => {
-                                        evaluated.push(ReportEvent { attempt, decision });
-                                    }
+                                    Ok(Some((attempt, decision))) => record(
+                                        &mut evaluated,
+                                        &mut live,
+                                        ReportEvent { attempt, decision },
+                                    ),
                                     Ok(None) => {} // Notification handled (e.g. unknown syscall or ignored)
                                     Err(e) => eprintln!("Seccomp handler error: {}", e),
                                 }
@@ -199,33 +218,46 @@ impl Monitor {
                     if let Some(watcher) = fs_watcher.as_mut() {
                         for event in watcher.drain() {
                             let decision = self.policy.evaluate(&event, &policy_context);
-                            evaluated.push(ReportEvent {
+                            let event = ReportEvent {
                                 attempt: event,
                                 decision,
-                            });
+                            };
+                            record(&mut evaluated, &mut live, event);
                         }
                     }
                 }
                 if live_config.proc {
                     for event in proc_watch::collect_process_events(child.id(), &mut seen_pids) {
                         let decision = self.policy.evaluate(&event, &policy_context);
-                        evaluated.push(ReportEvent {
+                        let event = ReportEvent {
                             attempt: event,
                             decision,
-                        });
+                        };
+                        record(&mut evaluated, &mut live, event);
                     }
                 }
                 if live_config.net {
                     for event in net_watch::collect_network_events(child.id(), &mut seen_net) {
                         let decision = self.policy.evaluate(&event, &policy_context);
-                        evaluated.push(ReportEvent {
+                        let event = ReportEvent {
                             attempt: event,
                             decision,
-                        });
+                        };
+                        record(&mut evaluated, &mut live, event);
                     }
+                }
+                if last_trust.elapsed() >= TRUST_INTERVAL {
+                    let score = self.policy.calculate_trust_score(request.trust_tier);
+                    live.write(&LiveEvent::Trust(score));
+                    last_trust = Instant::now();
                 }
             }
 
+            live.write(&LiveEvent::Process {
+                pid: child.id(),
+                exe: request.executable.clone(),
+                state: ProcessState::Exited,
+            });
             // seccomp_fd drops here
         }
 
@@ -236,15 +268,22 @@ impl Monitor {
 
         while let Some(event) = source.next_event()? {
             let decision = self.policy.evaluate(&event, &policy_context);
-            evaluated.push(ReportEvent {
+            let event = ReportEvent {
                 attempt: event,
                 decision,
-            });
+            };
+            record(&mut evaluated, &mut live, event);
         }
 
         metadata.ended_at = Some(OffsetDateTime::now_utc());
         let trust_signal = trust_signal_for_tier(request.trust_tier);
-        Ok(SessionReport::new(metadata, trust_signal, evaluated))
+        let report = SessionReport::new(metadata, trust_signal, evaluated);
+        let score = self.policy.calculate_trust_score(request.trust_tier);
+        live.write(&LiveEvent::Trust(score));
+        live.write(&LiveEvent::End {
+            stats: report.stats.clone(),
+        });
+        Ok(report)
     }
 
     fn spawn_process(
@@ -292,4 +331,19 @@ impl Monitor {
 
         Ok((child, Some(rx)))
     }
+}
+
+fn open_live_log(dir: Option<&Path>, session_id: Uuid) -> LiveLog {
+    let Some(dir) = dir else {
+        return LiveLog::disabled();
+    };
+    LiveLog::create(&dir.join(format!("{session_id}.jsonl"))).unwrap_or_else(|e| {
+        eprintln!("Warning: live log unavailable: {e:#}");
+        LiveLog::disabled()
+    })
+}
+
+fn record(evaluated: &mut Vec<ReportEvent>, live: &mut LiveLog, event: ReportEvent) {
+    live.write(&LiveEvent::Access(event.clone()));
+    evaluated.push(event);
 }
