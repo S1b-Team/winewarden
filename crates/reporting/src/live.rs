@@ -38,13 +38,11 @@ pub enum ProcessState {
     Exited,
 }
 
-/// Directory for live session logs: `$XDG_RUNTIME_DIR/winewarden/sessions`,
-/// or `<data_dir>/sessions` when no runtime dir is set.
+/// Directory for live session logs: `<data_dir>/sessions`, next to the
+/// reports. It stays outside the sandbox's writable paths (`/run` and `/tmp`
+/// are writable there), so the monitored app can't rewrite its own log.
 pub fn default_live_dir(paths: &ConfigPaths) -> PathBuf {
-    match std::env::var_os("XDG_RUNTIME_DIR") {
-        Some(dir) if !dir.is_empty() => PathBuf::from(dir).join("winewarden").join("sessions"),
-        _ => paths.data_dir.join("sessions"),
-    }
+    paths.data_dir.join("sessions")
 }
 
 /// Appends live events to a JSONL file. A failed write is reported once and
