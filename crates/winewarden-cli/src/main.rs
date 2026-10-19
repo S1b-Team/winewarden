@@ -86,8 +86,8 @@ enum Commands {
     },
     /// Launch interactive TUI dashboard
     Monitor {
-        /// Session ID to monitor (optional, starts new if not provided)
-        #[arg(long)]
+        /// Session ID to follow (defaults to the newest live session)
+        #[arg(long, conflicts_with = "report")]
         session: Option<String>,
         /// Show a finished session report (JSON written by `winewarden run`)
         #[arg(long)]
@@ -211,7 +211,9 @@ fn main() -> Result<()> {
                 Ok(())
             }
         }
-        Commands::Monitor { session: _, report } => tui::run_tui(report.as_deref()),
+        Commands::Monitor { session, report } => {
+            tui::run_tui(report.as_deref(), session.as_deref())
+        }
     }
 }
 

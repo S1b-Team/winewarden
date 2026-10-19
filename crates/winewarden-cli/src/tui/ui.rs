@@ -273,40 +273,14 @@ fn render_network(frame: &mut Frame, app: &App, area: Rect) {
     );
     frame.render_widget(connections_table, layout[0]);
 
-    // DNS queries table
-    let dns_header = Row::new(vec!["Domain", "Queries", "Resolved IPs"]).style(
-        Style::default()
-            .fg(Color::Yellow)
-            .add_modifier(Modifier::BOLD),
-    );
-
-    let dns_rows: Vec<Row> = app
-        .dns_queries
-        .iter()
-        .map(|dns| {
-            Row::new(vec![
-                Cell::from(dns.domain.clone()),
-                Cell::from(dns.query_count.to_string()),
-                Cell::from(dns.resolved_ips.join(", ")),
-            ])
-        })
-        .collect();
-
-    let dns_table = Table::new(
-        dns_rows,
-        [
-            Constraint::Percentage(40),
-            Constraint::Percentage(15),
-            Constraint::Percentage(45),
-        ],
-    )
-    .header(dns_header)
-    .block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(format!(" DNS Queries ({}) ", app.dns_queries.len())),
-    );
-    frame.render_widget(dns_table, layout[1]);
+    let dns = Paragraph::new("DNS queries are not captured yet.")
+        .style(Style::default().fg(Color::DarkGray))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" DNS Queries (not captured) "),
+        );
+    frame.render_widget(dns, layout[1]);
 }
 
 /// Renders the processes screen
@@ -474,8 +448,14 @@ fn render_recent_events(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 /// Renders the footer with help text
-fn render_footer(frame: &mut Frame, _app: &App, area: Rect) {
-    let help_text = "Tab/→:Next | Shift+Tab/←:Prev | Q:Quit | P:Pause | ↑↓:Scroll | /:Filter";
+fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
+    let pause = if app.paused {
+        "P:Resume [PAUSED]"
+    } else {
+        "P:Pause"
+    };
+    let help_text =
+        format!("Tab/→:Next | Shift+Tab/←:Prev | Q:Quit | {pause} | ↑↓:Scroll | /:Filter");
     let help = Paragraph::new(help_text)
         .block(Block::default().borders(Borders::ALL))
         .style(Style::default().fg(Color::Gray))
