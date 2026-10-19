@@ -28,6 +28,9 @@ pub enum LiveEvent {
     Trust(TrustScore),
     End {
         stats: ReportStats,
+        /// Why the session stopped early; absent when it finished normally
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        error: Option<String>,
     },
 }
 
@@ -165,6 +168,7 @@ mod tests {
         log.write(&LiveEvent::Trust(TrustScore::new(80, vec![])));
         log.write(&LiveEvent::End {
             stats: ReportStats::from_events(&[access]),
+            error: None,
         });
 
         let events = read_live_log(&path).unwrap();
@@ -186,7 +190,11 @@ mod tests {
             &events[3],
             LiveEvent::Trust(score) if score.score == 80 && score.recommended_tier == TrustTier::Green
         ));
-        assert!(matches!(&events[4], LiveEvent::End { stats } if stats.denied == 1));
+        assert!(matches!(
+            &events[4],
+            LiveEvent::End { stats, error: None } if stats.denied == 1
+        ));
+        assert!(!fs::read_to_string(&path).unwrap().contains("\"error\""));
 
         let mode = fs::metadata(path.parent().unwrap())
             .unwrap()
@@ -194,6 +202,13 @@ mod tests {
             .mode();
         assert_eq!(mode & 0o777, 0o700);
         fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn end_line_without_error_still_parses() {
+        let line = r#"{"type":"end","stats":{"total_attempts":0,"denied":0,"redirected":0,"virtualized":0,"allowed":0,"systemic_risks":0}}"#;
+        let event: LiveEvent = serde_json::from_str(line).unwrap();
+        assert!(matches!(event, LiveEvent::End { error: None, .. }));
     }
 
     #[test]

@@ -112,6 +112,29 @@ impl Monitor {
             metadata: metadata.clone(),
         });
 
+        let mut evaluated = Vec::new();
+        let outcome = self.run_session(&request, &mut live, &mut evaluated);
+
+        // Every run that wrote a session line also writes an end line, even
+        // when it stops early, so a reader never waits on a dead session.
+        metadata.ended_at = Some(OffsetDateTime::now_utc());
+        let trust_signal = trust_signal_for_tier(request.trust_tier);
+        let report = SessionReport::new(metadata, trust_signal, evaluated);
+        let score = self.policy.calculate_trust_score(request.trust_tier);
+        live.write(&LiveEvent::Trust(score));
+        live.write(&LiveEvent::End {
+            stats: report.stats.clone(),
+            error: outcome.as_ref().err().map(|e| format!("{e:#}")),
+        });
+        outcome.map(|()| report)
+    }
+
+    fn run_session(
+        &self,
+        request: &RunRequest,
+        live: &mut LiveLog,
+        evaluated: &mut Vec<ReportEvent>,
+    ) -> Result<()> {
         let mut child_process = None;
         let mut seccomp_fd: Option<OwnedFd> = None;
 
@@ -147,7 +170,6 @@ impl Monitor {
         let data_dir = request.prefix_root.join(".winewarden");
         let mut handler_ctx = seccomp_handler::HandlerContext::new(data_dir)?;
 
-        let mut evaluated = Vec::new();
         if let Some(mut child) = child_process {
             let live_config = request.live_monitor.clone().unwrap_or_default();
             let mut fs_watcher = if live_config.fs {
@@ -187,11 +209,9 @@ impl Monitor {
                                     &policy_context,
                                     &mut handler_ctx,
                                 ) {
-                                    Ok(Some((attempt, decision))) => record(
-                                        &mut evaluated,
-                                        &mut live,
-                                        ReportEvent { attempt, decision },
-                                    ),
+                                    Ok(Some((attempt, decision))) => {
+                                        record(evaluated, live, ReportEvent { attempt, decision })
+                                    }
                                     Ok(None) => {} // Notification handled (e.g. unknown syscall or ignored)
                                     Err(e) => eprintln!("Seccomp handler error: {}", e),
                                 }
@@ -222,7 +242,7 @@ impl Monitor {
                                 attempt: event,
                                 decision,
                             };
-                            record(&mut evaluated, &mut live, event);
+                            record(evaluated, live, event);
                         }
                     }
                 }
@@ -233,7 +253,7 @@ impl Monitor {
                             attempt: event,
                             decision,
                         };
-                        record(&mut evaluated, &mut live, event);
+                        record(evaluated, live, event);
                     }
                 }
                 if live_config.net {
@@ -243,7 +263,7 @@ impl Monitor {
                             attempt: event,
                             decision,
                         };
-                        record(&mut evaluated, &mut live, event);
+                        record(evaluated, live, event);
                     }
                 }
                 if last_trust.elapsed() >= TRUST_INTERVAL {
@@ -272,18 +292,9 @@ impl Monitor {
                 attempt: event,
                 decision,
             };
-            record(&mut evaluated, &mut live, event);
+            record(evaluated, live, event);
         }
-
-        metadata.ended_at = Some(OffsetDateTime::now_utc());
-        let trust_signal = trust_signal_for_tier(request.trust_tier);
-        let report = SessionReport::new(metadata, trust_signal, evaluated);
-        let score = self.policy.calculate_trust_score(request.trust_tier);
-        live.write(&LiveEvent::Trust(score));
-        live.write(&LiveEvent::End {
-            stats: report.stats.clone(),
-        });
-        Ok(report)
+        Ok(())
     }
 
     fn spawn_process(
