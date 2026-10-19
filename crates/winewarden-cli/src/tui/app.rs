@@ -95,15 +95,6 @@ pub struct ConnectionInfo {
     pub connection_count: u32,
 }
 
-/// DNS query info
-#[derive(Debug, Clone)]
-pub struct DnsInfo {
-    pub domain: String,
-    pub resolved_ips: Vec<String>,
-    pub query_count: u32,
-    pub last_query: Instant,
-}
-
 /// Main application state
 #[derive(Debug)]
 pub struct App {
@@ -123,8 +114,6 @@ pub struct App {
     pub processes: Vec<ProcessInfo>,
     /// Active connections
     pub connections: Vec<ConnectionInfo>,
-    /// DNS queries
-    pub dns_queries: Vec<DnsInfo>,
     /// Session start time
     pub session_start: Instant,
     /// Session end time, set once the session has finished
@@ -139,6 +128,8 @@ pub struct App {
     pub selected_event: usize,
     /// Auto-scroll events
     pub auto_scroll: bool,
+    /// Stop reading new live events until resumed
+    pub paused: bool,
 }
 
 impl Default for App {
@@ -158,7 +149,6 @@ impl App {
             events: VecDeque::with_capacity(MAX_EVENTS),
             processes: Vec::new(),
             connections: Vec::new(),
-            dns_queries: Vec::new(),
             session_start: Instant::now(),
             session_end: None,
             total_events: 0,
@@ -166,6 +156,7 @@ impl App {
             event_filter: String::new(),
             selected_event: 0,
             auto_scroll: true,
+            paused: false,
         }
     }
 
@@ -257,26 +248,6 @@ impl App {
         }
     }
 
-    /// Adds or updates a DNS query
-    pub fn add_dns_query(&mut self, domain: String, resolved: Vec<String>) {
-        if let Some(query) = self.dns_queries.iter_mut().find(|q| q.domain == domain) {
-            query.query_count += 1;
-            query.last_query = Instant::now();
-            for ip in resolved {
-                if !query.resolved_ips.contains(&ip) {
-                    query.resolved_ips.push(ip);
-                }
-            }
-        } else {
-            self.dns_queries.push(DnsInfo {
-                domain,
-                resolved_ips: resolved,
-                query_count: 1,
-                last_query: Instant::now(),
-            });
-        }
-    }
-
     /// Adds a process
     pub fn add_process(&mut self, name: String, pid: u32) {
         self.processes.push(ProcessInfo {
@@ -323,9 +294,9 @@ impl App {
         self.current_screen = self.current_screen.prev();
     }
 
-    /// Toggles pause
+    /// Pauses or resumes reading live events; new events wait in the log
     pub fn toggle_pause(&mut self) {
-        // In a real implementation, this would pause/resume monitoring
+        self.paused = !self.paused;
     }
 
     /// Clears event filter

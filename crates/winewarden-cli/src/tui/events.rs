@@ -49,20 +49,8 @@ impl EventHandler {
     }
 }
 
-/// Handles a TUI event and updates the app state
-pub fn handle_event(app: &mut App, event: TuiEvent) -> anyhow::Result<()> {
-    match event {
-        TuiEvent::Tick => {
-            // Update logic for tick events
-            // In a real implementation, this would poll for new data
-        }
-        TuiEvent::Key(key) => handle_key_event(app, key)?,
-    }
-    Ok(())
-}
-
 /// Handles keyboard input
-fn handle_key_event(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+pub fn handle_key_event(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
     match app.current_screen {
         Screen::Events => handle_events_screen_keys(app, key),
         _ => handle_normal_keys(app, key),

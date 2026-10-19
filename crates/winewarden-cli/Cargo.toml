@@ -21,6 +21,4 @@ policy-engine = { path = "../policy-engine" }
 monitor = { path = "../monitor" }
 prefix-manager = { path = "../prefix-manager" }
 reporting = { path = "../reporting" }
-
-[dev-dependencies]
 uuid.workspace = true
