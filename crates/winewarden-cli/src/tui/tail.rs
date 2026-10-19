@@ -164,8 +164,28 @@ mod tests {
 
         log.write(&LiveEvent::End {
             stats: reporting::ReportStats::from_events(&[]),
+            error: None,
         });
         tail.poll(&mut app).unwrap();
+        assert!(app.session_end.is_some());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn session_that_stopped_early_shows_as_ended() {
+        let dir = temp_dir();
+        let path = dir.join("s.jsonl");
+        let mut log = LiveLog::create(&path).unwrap();
+        log.write(&LiveEvent::Session {
+            metadata: metadata(),
+        });
+        log.write(&LiveEvent::End {
+            stats: reporting::ReportStats::from_events(&[]),
+            error: Some("launch /games/game.exe: Invalid argument".to_string()),
+        });
+
+        let mut app = App::new();
+        LiveTail::open(&path).unwrap().poll(&mut app).unwrap();
         assert!(app.session_end.is_some());
         fs::remove_dir_all(dir).unwrap();
     }
