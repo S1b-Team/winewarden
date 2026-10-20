@@ -141,11 +141,32 @@ pub fn format_prefix_diff(diff: &PrefixDiffSummary) -> String {
             PrefixChangeKind::Removed => '-',
             PrefixChangeKind::Modified => '~',
         };
-        out.push_str(&format!("\n  {marker} {}", change.path.display()));
+        out.push_str(&format!(
+            "\n  {marker} {}",
+            terminal_safe(&change.path.display().to_string())
+        ));
     }
     if diff.truncated {
         let hidden = diff.total().saturating_sub(diff.changes.len() as u64);
         out.push_str(&format!("\n  ... and {hidden} more"));
+    }
+    out
+}
+
+/// Escapes control characters and Unicode bidi/direction marks so a file name
+/// written by the sandboxed game cannot drive or visually spoof the terminal.
+fn terminal_safe(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        let bidi = matches!(
+            c,
+            '\u{061C}' | '\u{200E}' | '\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}'
+        );
+        if c.is_control() || bidi {
+            out.extend(c.escape_unicode());
+        } else {
+            out.push(c);
+        }
     }
     out
 }
@@ -241,5 +262,33 @@ mod tests {
         let mut report = report();
         report.prefix_diff = Some(PrefixDiffSummary::default());
         assert!(report.human_summary().contains("Prefix unchanged"));
+    }
+
+    #[test]
+    fn prefix_diff_summary_escapes_terminal_control_sequences() {
+        let diff = PrefixDiffSummary {
+            baseline_id: None,
+            baseline_created_at: None,
+            added: 1,
+            removed: 0,
+            modified: 0,
+            truncated: false,
+            changes: vec![PrefixChange {
+                path: PathBuf::from("drive_c/\u{1b}[2J\u{1b}]52;c;eA==\u{7}evil\u{202E}txt.exe\n"),
+                kind: PrefixChangeKind::Added,
+            }],
+        };
+        let text = format_prefix_diff(&diff);
+        assert!(!text
+            .chars()
+            .any(|c| c == '\u{1b}' || c == '\u{7}' || c == '\u{202E}'));
+        assert_eq!(
+            text.lines().count(),
+            2,
+            "embedded newline must not add a line"
+        );
+        assert!(text.contains("\\u{1b}[2J"));
+        assert!(text.contains("\\u{202e}txt.exe\\u{a}"));
+        assert!(text.contains("evil"));
     }
 }
