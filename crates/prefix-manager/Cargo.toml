@@ -12,3 +12,6 @@ time.workspace = true
 walkdir.workspace = true
 uuid.workspace = true
 winewarden-core = { path = "../winewarden-core" }
+
+[dev-dependencies]
+tempfile = "3.10"

@@ -56,6 +56,7 @@ fn event_log_run_writes_live_log() {
             no_run: true,
             live_monitor: None,
             live_log_dir: Some(live_dir.clone()),
+            prefix_baseline: None,
         })
         .unwrap();
 
@@ -80,7 +81,7 @@ fn event_log_run_writes_live_log() {
     }
     assert!(matches!(events[3], LiveEvent::Trust(_)));
     assert!(
-        matches!(&events[4], LiveEvent::End { stats, error: None } if stats.total_attempts == report.stats.total_attempts)
+        matches!(&events[4], LiveEvent::End { stats, error: None, prefix_diff: None } if stats.total_attempts == report.stats.total_attempts)
     );
 }
 
@@ -99,6 +100,7 @@ fn failed_run_still_ends_live_log() {
         no_run: true,
         live_monitor: None,
         live_log_dir: Some(live_dir.clone()),
+        prefix_baseline: None,
     });
     let error = result.unwrap_err().to_string();
 

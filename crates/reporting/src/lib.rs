@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use policy_engine::{DecisionAction, PolicyDecision};
 use winewarden_core::trust::{TrustSignal, TrustTier};
-use winewarden_core::types::{AccessAttempt, RunMetadata};
+use winewarden_core::types::{AccessAttempt, PrefixChangeKind, PrefixDiffSummary, RunMetadata};
 
 pub mod live;
 
@@ -37,6 +37,10 @@ pub struct SessionReport {
     pub trust_signal: TrustSignal,
     pub events: Vec<ReportEvent>,
     pub stats: ReportStats,
+    /// Prefix changes since the baseline snapshot; absent when no baseline
+    /// was available or the comparison failed
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prefix_diff: Option<PrefixDiffSummary>,
 }
 
 impl SessionReport {
@@ -49,6 +53,7 @@ impl SessionReport {
             trust_signal,
             events,
             stats,
+            prefix_diff: None,
         }
     }
 
@@ -77,10 +82,15 @@ impl SessionReport {
             format!("{dangerous} dangerous access attempts were blocked or redirected.")
         };
 
-        format!(
+        let mut summary = format!(
             "You played for {duration}.\n{safe_line}\nYour system remains intact.\n{signal}",
             signal = self.trust_signal.message
-        )
+        );
+        if let Some(diff) = &self.prefix_diff {
+            summary.push('\n');
+            summary.push_str(&format_prefix_diff(diff));
+        }
+        summary
     }
 }
 
@@ -116,6 +126,30 @@ impl ReportStats {
     }
 }
 
+/// Human-readable prefix diff: one count line, then the listed changes.
+pub fn format_prefix_diff(diff: &PrefixDiffSummary) -> String {
+    if diff.is_empty() {
+        return "Prefix unchanged since baseline snapshot.".to_string();
+    }
+    let mut out = format!(
+        "Prefix changes since baseline snapshot: {} added, {} removed, {} modified.",
+        diff.added, diff.removed, diff.modified
+    );
+    for change in &diff.changes {
+        let marker = match change.kind {
+            PrefixChangeKind::Added => '+',
+            PrefixChangeKind::Removed => '-',
+            PrefixChangeKind::Modified => '~',
+        };
+        out.push_str(&format!("\n  {marker} {}", change.path.display()));
+    }
+    if diff.truncated {
+        let hidden = diff.total().saturating_sub(diff.changes.len() as u64);
+        out.push_str(&format!("\n  ... and {hidden} more"));
+    }
+    out
+}
+
 fn format_duration(duration: Duration) -> String {
     let total_seconds = duration.as_seconds_f64().max(0.0) as i64;
     let hours = total_seconds / 3600;
@@ -133,4 +167,79 @@ fn format_duration(duration: Duration) -> String {
 
 pub fn trust_signal_for_tier(tier: TrustTier) -> TrustSignal {
     TrustSignal::from_tier(tier)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use time::OffsetDateTime;
+    use winewarden_core::types::PrefixChange;
+
+    fn report() -> SessionReport {
+        let metadata = RunMetadata {
+            session_id: Uuid::new_v4(),
+            executable: PathBuf::from("/games/game.exe"),
+            args: Vec::new(),
+            started_at: OffsetDateTime::now_utc(),
+            ended_at: None,
+            trust_tier: TrustTier::Yellow,
+        };
+        SessionReport::new(
+            metadata,
+            trust_signal_for_tier(TrustTier::Yellow),
+            Vec::new(),
+        )
+    }
+
+    #[test]
+    fn report_without_prefix_diff_omits_field_and_old_json_parses() {
+        let report = report();
+        let json = serde_json::to_value(&report).unwrap();
+        assert!(json.get("prefix_diff").is_none());
+        let parsed: SessionReport = serde_json::from_value(json).unwrap();
+        assert!(parsed.prefix_diff.is_none());
+        assert!(!report.human_summary().contains("Prefix"));
+    }
+
+    #[test]
+    fn summary_lists_changes_and_hidden_count() {
+        let mut report = report();
+        report.prefix_diff = Some(PrefixDiffSummary {
+            added: 3,
+            removed: 1,
+            modified: 1,
+            changes: vec![
+                PrefixChange {
+                    path: PathBuf::from("/p/a.txt"),
+                    kind: PrefixChangeKind::Added,
+                },
+                PrefixChange {
+                    path: PathBuf::from("/p/b.txt"),
+                    kind: PrefixChangeKind::Removed,
+                },
+            ],
+            truncated: true,
+            ..PrefixDiffSummary::default()
+        });
+        let summary = report.human_summary();
+        assert!(
+            summary.contains("3 added, 1 removed, 1 modified"),
+            "{summary}"
+        );
+        assert!(summary.contains("+ /p/a.txt"));
+        assert!(summary.contains("- /p/b.txt"));
+        assert!(summary.contains("... and 3 more"));
+
+        let json = serde_json::to_string(&report).unwrap();
+        let parsed: SessionReport = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.prefix_diff, report.prefix_diff);
+    }
+
+    #[test]
+    fn empty_diff_says_unchanged() {
+        let mut report = report();
+        report.prefix_diff = Some(PrefixDiffSummary::default());
+        assert!(report.human_summary().contains("Prefix unchanged"));
+    }
 }
