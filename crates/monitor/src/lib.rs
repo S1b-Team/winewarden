@@ -17,10 +17,11 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use policy_engine::{PolicyContext, PolicyEngine};
+use prefix_manager::{PrefixManager, DEFAULT_DIFF_LIST_CAP};
 use reporting::live::{LiveEvent, LiveLog, ProcessState};
 use reporting::{trust_signal_for_tier, ReportEvent, SessionReport};
 use winewarden_core::trust::TrustTier;
-use winewarden_core::types::{AccessAttempt, LiveMonitorConfig, RunMetadata};
+use winewarden_core::types::{AccessAttempt, LiveMonitorConfig, PrefixDiffSummary, RunMetadata};
 
 pub mod fs_watch;
 pub mod memory;
@@ -82,6 +83,9 @@ pub struct RunRequest {
     /// Directory for the live `<session_id>.jsonl` log; no log when unset
     #[serde(default)]
     pub live_log_dir: Option<PathBuf>,
+    /// Baseline snapshot file to diff the prefix against after the run
+    #[serde(default)]
+    pub prefix_baseline: Option<PathBuf>,
 }
 
 const TRUST_INTERVAL: Duration = Duration::from_secs(1);
@@ -119,12 +123,17 @@ impl Monitor {
         // when it stops early, so a reader never waits on a dead session.
         metadata.ended_at = Some(OffsetDateTime::now_utc());
         let trust_signal = trust_signal_for_tier(request.trust_tier);
-        let report = SessionReport::new(metadata, trust_signal, evaluated);
+        let mut report = SessionReport::new(metadata, trust_signal, evaluated);
+        report.prefix_diff = request
+            .prefix_baseline
+            .as_deref()
+            .and_then(|baseline| prefix_diff(&request.prefix_root, baseline));
         let score = self.policy.calculate_trust_score(request.trust_tier);
         live.write(&LiveEvent::Trust(score));
         live.write(&LiveEvent::End {
             stats: report.stats.clone(),
             error: outcome.as_ref().err().map(|e| format!("{e:#}")),
+            prefix_diff: report.prefix_diff.clone(),
         });
         outcome.map(|()| report)
     }
@@ -341,6 +350,25 @@ impl Monitor {
             .with_context(|| format!("launch {}", executable.display()))?;
 
         Ok((child, Some(rx)))
+    }
+}
+
+/// Compares the prefix against the baseline snapshot. A failure only costs
+/// the diff, never the run, so it is reported as a warning.
+fn prefix_diff(prefix_root: &Path, baseline: &Path) -> Option<PrefixDiffSummary> {
+    let result = PrefixManager::load_snapshot(baseline).and_then(|snapshot| {
+        let manager = PrefixManager {
+            prefix_root: prefix_root.to_path_buf(),
+            snapshot_dir: baseline.parent().unwrap_or(Path::new(".")).to_path_buf(),
+        };
+        manager.diff_summary(&snapshot, DEFAULT_DIFF_LIST_CAP)
+    });
+    match result {
+        Ok(diff) => Some(diff),
+        Err(e) => {
+            eprintln!("Warning: prefix diff unavailable: {e:#}");
+            None
+        }
     }
 }
 

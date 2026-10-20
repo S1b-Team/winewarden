@@ -108,8 +108,17 @@ fn execute_run(payload: RunRequestPayload) -> Result<SessionReport> {
         && !trust_store.records.contains_key(&identity.sha256)
     {
         let manager = PrefixManager::new(prefix_root.clone(), &paths);
-        let _snapshot = manager.create_snapshot()?;
+        manager.create_snapshot()?;
     }
+
+    // The baseline is the snapshot from before the first run and is left in
+    // place, so every report shows drift from that clean state.
+    let prefix_baseline = PrefixManager::new(prefix_root.clone(), &paths)
+        .latest_snapshot_path()
+        .unwrap_or_else(|e| {
+            eprintln!("Warning: prefix snapshot lookup failed: {e:#}");
+            None
+        });
 
     if config.prefix.hygiene_scan_on_run {
         let manager = PrefixManager::new(prefix_root.clone(), &paths);
@@ -137,6 +146,7 @@ fn execute_run(payload: RunRequestPayload) -> Result<SessionReport> {
         no_run: payload.no_run,
         live_monitor: live,
         live_log_dir: Some(default_live_dir(&paths)),
+        prefix_baseline,
     };
 
     let report = monitor.run(request)?;

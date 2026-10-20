@@ -73,3 +73,49 @@ impl Default for LiveMonitorConfig {
         }
     }
 }
+
+/// How a prefix file differs from the stored baseline snapshot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PrefixChangeKind {
+    Added,
+    Removed,
+    Modified,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PrefixChange {
+    pub path: PathBuf,
+    pub kind: PrefixChangeKind,
+}
+
+/// Changes in a prefix since its baseline snapshot. The counts always cover
+/// every change; `changes` is capped and sorted by path, and `truncated` says
+/// whether entries were left out.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PrefixDiffSummary {
+    #[serde(default)]
+    pub baseline_id: Option<Uuid>,
+    #[serde(default)]
+    pub baseline_created_at: Option<OffsetDateTime>,
+    #[serde(default)]
+    pub added: u64,
+    #[serde(default)]
+    pub removed: u64,
+    #[serde(default)]
+    pub modified: u64,
+    #[serde(default)]
+    pub changes: Vec<PrefixChange>,
+    #[serde(default)]
+    pub truncated: bool,
+}
+
+impl PrefixDiffSummary {
+    pub fn total(&self) -> u64 {
+        self.added + self.removed + self.modified
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.total() == 0
+    }
+}

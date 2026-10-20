@@ -9,6 +9,10 @@ use uuid::Uuid;
 use walkdir::WalkDir;
 
 use winewarden_core::config::ConfigPaths;
+use winewarden_core::types::{PrefixChange, PrefixChangeKind, PrefixDiffSummary};
+
+/// Default cap on the number of individual changes kept in a diff summary.
+pub const DEFAULT_DIFF_LIST_CAP: usize = 50;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrefixSnapshot {
@@ -146,26 +150,35 @@ impl PrefixManager {
             let entry = entry?;
             if entry.file_type().is_file() {
                 let metadata = entry.metadata()?;
-                current_map.insert(entry.path().to_path_buf(), metadata.len());
+                let modified_at = metadata.modified().ok().map(OffsetDateTime::from);
+                current_map.insert(entry.path().to_path_buf(), (metadata.len(), modified_at));
             }
         }
 
         let mut snapshot_map = HashMap::new();
         for entry in &snapshot.entries {
-            snapshot_map.insert(entry.path.clone(), entry.size);
+            snapshot_map.insert(entry.path.clone(), (entry.size, entry.modified_at));
         }
 
-        for (path, size) in &current_map {
+        for (path, (size, modified_at)) in &current_map {
             match snapshot_map.get(path) {
                 None => changes.push(SnapshotChange {
                     path: path.clone(),
                     change: SnapshotChangeKind::Added,
                 }),
-                Some(old_size) if old_size != size => changes.push(SnapshotChange {
-                    path: path.clone(),
-                    change: SnapshotChangeKind::Modified,
-                }),
-                _ => {}
+                Some((old_size, old_modified)) => {
+                    // A rewrite that keeps the size still moves the mtime.
+                    let mtime_changed = matches!(
+                        (old_modified, modified_at),
+                        (Some(old), Some(new)) if old != new
+                    );
+                    if old_size != size || mtime_changed {
+                        changes.push(SnapshotChange {
+                            path: path.clone(),
+                            change: SnapshotChangeKind::Modified,
+                        });
+                    }
+                }
             }
         }
 
@@ -179,6 +192,79 @@ impl PrefixManager {
         }
 
         Ok(changes)
+    }
+
+    /// Diffs the prefix against `snapshot` and condenses the result: full
+    /// counts, plus at most `cap` changes sorted by path.
+    pub fn diff_summary(&self, snapshot: &PrefixSnapshot, cap: usize) -> Result<PrefixDiffSummary> {
+        let mut changes = self.diff_snapshot(snapshot)?;
+        changes.sort_by(|a, b| a.path.cmp(&b.path));
+        let mut summary = PrefixDiffSummary {
+            baseline_id: Some(snapshot.id),
+            baseline_created_at: Some(snapshot.created_at),
+            ..PrefixDiffSummary::default()
+        };
+        for change in &changes {
+            match change.change {
+                SnapshotChangeKind::Added => summary.added += 1,
+                SnapshotChangeKind::Removed => summary.removed += 1,
+                SnapshotChangeKind::Modified => summary.modified += 1,
+            }
+        }
+        summary.truncated = changes.len() > cap;
+        summary.changes = changes
+            .into_iter()
+            .take(cap)
+            .map(|change| PrefixChange {
+                path: change.path,
+                kind: match change.change {
+                    SnapshotChangeKind::Added => PrefixChangeKind::Added,
+                    SnapshotChangeKind::Removed => PrefixChangeKind::Removed,
+                    SnapshotChangeKind::Modified => PrefixChangeKind::Modified,
+                },
+            })
+            .collect();
+        Ok(summary)
+    }
+
+    pub fn load_snapshot(path: &Path) -> Result<PrefixSnapshot> {
+        let contents = fs::read_to_string(path)
+            .with_context(|| format!("read snapshot {}", path.display()))?;
+        serde_json::from_str(&contents)
+            .with_context(|| format!("parse snapshot {}", path.display()))
+    }
+
+    /// Path of the newest stored snapshot taken of this prefix, if any.
+    /// Unreadable or foreign snapshot files are skipped.
+    pub fn latest_snapshot_path(&self) -> Result<Option<PathBuf>> {
+        let dir = match fs::read_dir(&self.snapshot_dir) {
+            Ok(dir) => dir,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => {
+                return Err(e)
+                    .with_context(|| format!("read snapshot dir {}", self.snapshot_dir.display()))
+            }
+        };
+        let mut latest: Option<(OffsetDateTime, PathBuf)> = None;
+        for entry in dir {
+            let path = entry?.path();
+            if path.extension().is_none_or(|ext| ext != "json") {
+                continue;
+            }
+            let Ok(snapshot) = Self::load_snapshot(&path) else {
+                continue;
+            };
+            if snapshot.prefix_root != self.prefix_root {
+                continue;
+            }
+            if latest
+                .as_ref()
+                .is_none_or(|(created_at, _)| snapshot.created_at > *created_at)
+            {
+                latest = Some((snapshot.created_at, path));
+            }
+        }
+        Ok(latest.map(|(_, path)| path))
     }
 
     fn collect_dll_locations(&self) -> Result<HashMap<String, Vec<PathBuf>>> {
@@ -248,4 +334,101 @@ fn has_executable_neighbor(path: &Path) -> Result<bool> {
         }
     }
     Ok(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn manager(root: &Path) -> PrefixManager {
+        PrefixManager {
+            prefix_root: root.join("prefix"),
+            snapshot_dir: root.join("snapshots"),
+        }
+    }
+
+    fn write(path: &Path, contents: &str) {
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, contents).unwrap();
+    }
+
+    #[test]
+    fn summary_counts_everything_but_caps_the_list() {
+        let dir = tempfile::tempdir().unwrap();
+        let manager = manager(dir.path());
+        write(&manager.prefix_root.join("keep.txt"), "x");
+        let snapshot = manager.create_snapshot().unwrap();
+        for i in 0..10 {
+            write(&manager.prefix_root.join(format!("new{i:02}.txt")), "y");
+        }
+
+        let summary = manager.diff_summary(&snapshot, 3).unwrap();
+        assert_eq!(summary.added, 10);
+        assert_eq!(summary.total(), 10);
+        assert!(summary.truncated);
+        let listed: Vec<_> = summary.changes.iter().map(|c| c.path.clone()).collect();
+        assert_eq!(
+            listed,
+            vec![
+                manager.prefix_root.join("new00.txt"),
+                manager.prefix_root.join("new01.txt"),
+                manager.prefix_root.join("new02.txt"),
+            ]
+        );
+        assert_eq!(summary.baseline_id, Some(snapshot.id));
+    }
+
+    #[test]
+    fn same_size_rewrite_counts_as_modified() {
+        let dir = tempfile::tempdir().unwrap();
+        let manager = manager(dir.path());
+        let file = manager.prefix_root.join("save.dat");
+        write(&file, "aaaa");
+        let snapshot = manager.create_snapshot().unwrap();
+        write(&file, "bbbb");
+        let later = std::time::SystemTime::now() + std::time::Duration::from_secs(60);
+        fs::File::options()
+            .write(true)
+            .open(&file)
+            .unwrap()
+            .set_modified(later)
+            .unwrap();
+
+        let summary = manager.diff_summary(&snapshot, 10).unwrap();
+        assert_eq!(summary.modified, 1);
+        assert_eq!(summary.changes[0].kind, PrefixChangeKind::Modified);
+    }
+
+    #[test]
+    fn untouched_prefix_has_empty_diff() {
+        let dir = tempfile::tempdir().unwrap();
+        let manager = manager(dir.path());
+        write(&manager.prefix_root.join("a.txt"), "a");
+        let snapshot = manager.create_snapshot().unwrap();
+        let summary = manager.diff_summary(&snapshot, 10).unwrap();
+        assert!(summary.is_empty());
+        assert!(!summary.truncated);
+    }
+
+    #[test]
+    fn latest_snapshot_picks_newest_for_this_prefix() {
+        let dir = tempfile::tempdir().unwrap();
+        let manager = manager(dir.path());
+        assert!(manager.latest_snapshot_path().unwrap().is_none());
+        fs::create_dir_all(&manager.prefix_root).unwrap();
+        let first = manager.create_snapshot().unwrap();
+        let second = manager.create_snapshot().unwrap();
+        let other = PrefixManager {
+            prefix_root: dir.path().join("other"),
+            snapshot_dir: manager.snapshot_dir.clone(),
+        };
+        fs::create_dir_all(&other.prefix_root).unwrap();
+        other.create_snapshot().unwrap();
+        fs::write(manager.snapshot_dir.join("broken.json"), "{").unwrap();
+
+        let path = manager.latest_snapshot_path().unwrap().unwrap();
+        let loaded = PrefixManager::load_snapshot(&path).unwrap();
+        assert_ne!(loaded.id, first.id);
+        assert_eq!(loaded.id, second.id);
+    }
 }

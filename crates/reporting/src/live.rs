@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 use policy_engine::TrustScore;
 use serde::{Deserialize, Serialize};
 use winewarden_core::config::ConfigPaths;
-use winewarden_core::types::RunMetadata;
+use winewarden_core::types::{PrefixDiffSummary, RunMetadata};
 
 use crate::{ReportEvent, ReportStats};
 
@@ -31,6 +31,9 @@ pub enum LiveEvent {
         /// Why the session stopped early; absent when it finished normally
         #[serde(default, skip_serializing_if = "Option::is_none")]
         error: Option<String>,
+        /// Prefix changes since the baseline snapshot; absent without one
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        prefix_diff: Option<PrefixDiffSummary>,
     },
 }
 
@@ -169,6 +172,7 @@ mod tests {
         log.write(&LiveEvent::End {
             stats: ReportStats::from_events(&[access]),
             error: None,
+            prefix_diff: None,
         });
 
         let events = read_live_log(&path).unwrap();
@@ -192,9 +196,11 @@ mod tests {
         ));
         assert!(matches!(
             &events[4],
-            LiveEvent::End { stats, error: None } if stats.denied == 1
+            LiveEvent::End { stats, error: None, prefix_diff: None } if stats.denied == 1
         ));
-        assert!(!fs::read_to_string(&path).unwrap().contains("\"error\""));
+        let raw = fs::read_to_string(&path).unwrap();
+        assert!(!raw.contains("\"error\""));
+        assert!(!raw.contains("prefix_diff"));
 
         let mode = fs::metadata(path.parent().unwrap())
             .unwrap()
@@ -208,7 +214,14 @@ mod tests {
     fn end_line_without_error_still_parses() {
         let line = r#"{"type":"end","stats":{"total_attempts":0,"denied":0,"redirected":0,"virtualized":0,"allowed":0,"systemic_risks":0}}"#;
         let event: LiveEvent = serde_json::from_str(line).unwrap();
-        assert!(matches!(event, LiveEvent::End { error: None, .. }));
+        assert!(matches!(
+            event,
+            LiveEvent::End {
+                error: None,
+                prefix_diff: None,
+                ..
+            }
+        ));
     }
 
     #[test]

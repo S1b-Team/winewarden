@@ -165,6 +165,7 @@ mod tests {
         log.write(&LiveEvent::End {
             stats: reporting::ReportStats::from_events(&[]),
             error: None,
+            prefix_diff: None,
         });
         tail.poll(&mut app).unwrap();
         assert!(app.session_end.is_some());
@@ -182,6 +183,7 @@ mod tests {
         log.write(&LiveEvent::End {
             stats: reporting::ReportStats::from_events(&[]),
             error: Some("launch /games/game.exe: Invalid argument".to_string()),
+            prefix_diff: None,
         });
 
         let mut app = App::new();
