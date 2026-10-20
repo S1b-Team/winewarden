@@ -298,7 +298,6 @@ fn render_processes(frame: &mut Frame, app: &App, area: Rect) {
             let runtime = format_duration(proc.started_at.elapsed());
             let status_color = match proc.status {
                 ProcessStatus::Running => Color::Green,
-                ProcessStatus::Suspended => Color::Yellow,
                 ProcessStatus::Terminated => Color::Red,
             };
 

@@ -2,8 +2,6 @@
 //!
 //! Manages the state for the real-time monitoring dashboard.
 
-#![allow(dead_code)] // Many methods are for future integration
-
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
@@ -71,7 +69,6 @@ pub struct ProcessInfo {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcessStatus {
     Running,
-    Suspended,
     Terminated,
 }
 
@@ -79,7 +76,6 @@ impl ProcessStatus {
     pub fn as_str(&self) -> &'static str {
         match self {
             ProcessStatus::Running => "●",
-            ProcessStatus::Suspended => "⏸",
             ProcessStatus::Terminated => "✗",
         }
     }
@@ -91,7 +87,6 @@ pub struct ConnectionInfo {
     pub host: String,
     pub port: u16,
     pub protocol: String,
-    pub first_seen: Instant,
     pub connection_count: u32,
 }
 
@@ -242,7 +237,6 @@ impl App {
                 host,
                 port,
                 protocol,
-                first_seen: Instant::now(),
                 connection_count: 1,
             });
         }
