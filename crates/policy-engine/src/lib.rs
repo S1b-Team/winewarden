@@ -122,11 +122,6 @@ impl PolicyEngine {
         self.behavior_profile.borrow()
     }
 
-    /// Returns process tracking statistics
-    pub fn process_tracker(&self) -> std::cell::Ref<'_, rules::process::ProcessTracker> {
-        self.process_tracker.borrow()
-    }
-
     /// Updates behavior profile based on an access attempt
     fn update_behavior_profile(&self, attempt: &AccessAttempt) {
         if let AccessTarget::Path(path) = &attempt.target {
@@ -144,12 +139,6 @@ impl PolicyEngine {
                 }
             }
         }
-    }
-
-    /// Resets all tracking data
-    pub fn reset_tracking(&self) {
-        *self.process_tracker.borrow_mut() = rules::process::ProcessTracker::new();
-        *self.behavior_profile.borrow_mut() = BehaviorProfile::new();
     }
 }
 
