@@ -5,39 +5,19 @@
 //! - Child process limits
 //! - Shell/script execution restrictions
 
-use std::collections::HashMap;
-
 use winewarden_core::config::ProcessConfig;
 
 use crate::decision::{DecisionAction, PolicyDecision};
 
-/// Tracks process execution statistics for a session
+/// Counts the child processes allowed so far in a session.
 #[derive(Debug, Clone, Default)]
 pub struct ProcessTracker {
-    /// Total child processes spawned
-    pub child_count: u32,
-    /// Process counts by name
-    pub process_counts: HashMap<String, u32>,
-    /// Allowed process executions
-    pub allowed: Vec<String>,
-    /// Denied process executions
-    pub denied: Vec<String>,
+    child_count: u32,
 }
 
 impl ProcessTracker {
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Records a process execution attempt
-    pub fn record_attempt(&mut self, process: &str, allowed: bool) {
-        if allowed {
-            self.allowed.push(process.to_string());
-            self.child_count += 1;
-            *self.process_counts.entry(process.to_string()).or_insert(0) += 1;
-        } else {
-            self.denied.push(process.to_string());
-        }
     }
 
     /// Returns true if child process limit would be exceeded
@@ -68,7 +48,6 @@ pub fn evaluate_process_spawn(
     // Check 2: Blocked patterns
     for pattern in &config.blocked_patterns {
         if matches_pattern(process, pattern) {
-            tracker.record_attempt(process, false);
             return PolicyDecision {
                 action: DecisionAction::Deny,
                 reason: format!("Process blocked by pattern '{}'", pattern),
@@ -80,7 +59,6 @@ pub fn evaluate_process_spawn(
 
     // Check 3: Shell execution
     if is_shell(process) && !config.allow_shell_execution {
-        tracker.record_attempt(process, false);
         return PolicyDecision {
             action: DecisionAction::Deny,
             reason: "Shell execution not allowed".to_string(),
@@ -91,7 +69,6 @@ pub fn evaluate_process_spawn(
 
     // Check 4: Script execution
     if is_script(process) && !config.allow_script_execution {
-        tracker.record_attempt(process, false);
         return PolicyDecision {
             action: DecisionAction::Deny,
             reason: "Script execution not allowed".to_string(),
@@ -110,7 +87,6 @@ pub fn evaluate_process_spawn(
             }
         }
         if !matched {
-            tracker.record_attempt(process, false);
             return PolicyDecision {
                 action: DecisionAction::Deny,
                 reason: format!("Process '{}' not in allowed patterns", process),
@@ -121,7 +97,7 @@ pub fn evaluate_process_spawn(
     }
 
     // All checks passed
-    tracker.record_attempt(process, true);
+    tracker.child_count += 1;
     PolicyDecision {
         action: DecisionAction::Allow,
         reason: format!("Process allowed: {}", process),
