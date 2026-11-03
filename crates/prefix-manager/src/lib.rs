@@ -30,19 +30,6 @@ pub struct SnapshotEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SnapshotChange {
-    pub path: PathBuf,
-    pub change: SnapshotChangeKind,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum SnapshotChangeKind {
-    Added,
-    Removed,
-    Modified,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HygieneFinding {
     pub kind: HygieneFindingKind,
     pub path: PathBuf,
@@ -143,7 +130,9 @@ impl PrefixManager {
         Ok(snapshot)
     }
 
-    pub fn diff_snapshot(&self, snapshot: &PrefixSnapshot) -> Result<Vec<SnapshotChange>> {
+    /// Diffs the live prefix against `snapshot`. Internal helper for
+    /// [`Self::diff_summary`]; callers should use the capped summary.
+    fn diff_snapshot(&self, snapshot: &PrefixSnapshot) -> Result<Vec<PrefixChange>> {
         let mut changes = Vec::new();
         let mut current_map = HashMap::new();
         for entry in WalkDir::new(&self.prefix_root) {
@@ -162,9 +151,9 @@ impl PrefixManager {
 
         for (path, (size, modified_at)) in &current_map {
             match snapshot_map.get(path) {
-                None => changes.push(SnapshotChange {
+                None => changes.push(PrefixChange {
                     path: path.clone(),
-                    change: SnapshotChangeKind::Added,
+                    kind: PrefixChangeKind::Added,
                 }),
                 Some((old_size, old_modified)) => {
                     // A rewrite that keeps the size still moves the mtime.
@@ -173,9 +162,9 @@ impl PrefixManager {
                         (Some(old), Some(new)) if old != new
                     );
                     if old_size != size || mtime_changed {
-                        changes.push(SnapshotChange {
+                        changes.push(PrefixChange {
                             path: path.clone(),
-                            change: SnapshotChangeKind::Modified,
+                            kind: PrefixChangeKind::Modified,
                         });
                     }
                 }
@@ -184,9 +173,9 @@ impl PrefixManager {
 
         for path in snapshot_map.keys() {
             if !current_map.contains_key(path) {
-                changes.push(SnapshotChange {
+                changes.push(PrefixChange {
                     path: path.clone(),
-                    change: SnapshotChangeKind::Removed,
+                    kind: PrefixChangeKind::Removed,
                 });
             }
         }
@@ -205,25 +194,14 @@ impl PrefixManager {
             ..PrefixDiffSummary::default()
         };
         for change in &changes {
-            match change.change {
-                SnapshotChangeKind::Added => summary.added += 1,
-                SnapshotChangeKind::Removed => summary.removed += 1,
-                SnapshotChangeKind::Modified => summary.modified += 1,
+            match change.kind {
+                PrefixChangeKind::Added => summary.added += 1,
+                PrefixChangeKind::Removed => summary.removed += 1,
+                PrefixChangeKind::Modified => summary.modified += 1,
             }
         }
         summary.truncated = changes.len() > cap;
-        summary.changes = changes
-            .into_iter()
-            .take(cap)
-            .map(|change| PrefixChange {
-                path: change.path,
-                kind: match change.change {
-                    SnapshotChangeKind::Added => PrefixChangeKind::Added,
-                    SnapshotChangeKind::Removed => PrefixChangeKind::Removed,
-                    SnapshotChangeKind::Modified => PrefixChangeKind::Modified,
-                },
-            })
-            .collect();
+        summary.changes = changes.into_iter().take(cap).collect();
         Ok(summary)
     }
 
